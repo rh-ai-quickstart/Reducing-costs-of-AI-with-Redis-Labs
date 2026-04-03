@@ -1,300 +1,280 @@
-# [INSERT quickstart title here]
+# Reduce insurance claims AI cost with Redis semantic cache
 
-<!-- CONTRIBUTOR TODO: update title ^^
-
-*replace the H1 title above with your quickstart title*
-
-TITLE requirements:
-	* MAX CHAR: 64
-	* Industry use case, ie: Protect patient data with LLM guardrails
-
-TITLE will be extracted for publication.
-
--- >
-
-
-
-<!-- CONTRIBUTOR TODO: short description
-
-*ADD a SHORT DESCRIPTION of your use case between H1 title and next section*
-
-SHORT DESCRIPTION requirements:
-	* MAX CHAR: 160
-	* Describe the INDUSTRY use case
-
-SHORT DESCRIPTION will be extracted for publication.
-
--->
+Deploy an insurance claims FAQ assistant on OpenShift AI that serves stable questions from Redis semantic cache and routes live claim questions to a fresh-answer path.
 
 ## Overview
 
-<!-- CONTRIBUTOR TODO: add overview
+This quickstart demonstrates a practical Red Hat + Redis pattern for reducing LLM cost and latency. The starter workload is an insurance claims assistant that handles repetitive FAQ-style questions such as deductible timing, claim documents, rental reimbursement, and windshield guidance.
 
-*Describe the quickstart at a high level. What does it do? What problem does it solve?*
+The assistant classifies incoming questions before answering them:
 
--->
+- stable FAQ and policy-guidance questions go to a cache-first path
+- temporal or claim-specific questions bypass semantic cache
+- cache misses can fall back to a live model endpoint when configured
+
+This makes the repo a concrete demonstration of where semantic caching works well and where it should not be used.
 
 ## Detailed description
 
-<!-- CONTRIBUTOR TODO: add detailed description.
+Insurance claims support is full of semantically similar questions whose answers do not change very often. Different users ask the same thing in different ways:
 
-This section is required. Describe the quickstart use case in more detail.
+- "What documents do I need to file an auto claim?"
+- "What paperwork should I have ready for my car insurance claim?"
+- "Do I need photos and a police report before I submit my claim?"
 
-This is not a technical description. This is about the workload.
+These are strong candidates for Redis semantic caching because the phrasing changes more than the answer. By contrast, questions such as "What is the status of my claim today?" or "Who is my adjuster right now?" should not be answered from a semantic cache because the answer can change over time.
 
-Technical description comes later.
-
--->
-
+This starter app makes that distinction explicit so teams can demonstrate measurable cache-hit savings without over-claiming correctness for transactional workflows.
 
 ### See it in action
 
-<!--
+After deployment, try these two requests:
 
-*This section is optional but recommended*
+```bash
+curl -s -X POST "$APP_URL/ask" -H 'Content-Type: application/json' \
+  -d '{"question":"When do I pay my deductible on an auto claim?"}' | jq
 
-Arcades are a great way to showcase your quickstart before installation.
+curl -s -X POST "$APP_URL/ask" -H 'Content-Type: application/json' \
+  -d '{"question":"What is the current status of my claim today?"}' | jq
+```
 
--->
+Expected behavior:
+
+- the deductible question should return a cache-eligible response
+- the claim-status question should bypass cache
 
 ### Architecture diagrams
 
-<!-- CONTRIBUTOR TODO: add architecture diagram.
+The Mermaid source for this diagram is stored in `docs/images/insurance-claims-semantic-cache.mmd`.
 
-*Section is required. Put images in `docs/images` folder*
+```mermaid
+flowchart LR
+    user[Claims user] --> ui[UI or API route]
 
--->
+    subgraph openshift[OpenShift / OpenShift AI project]
+        ui --> app[Claims assistant service]
+        app --> router[Request classifier / guardrails]
+        router --> cachecheck[Semantic cache lookup]
+        router --> livepath[Live answer path]
+        job[Cache warmup / evaluation job] --> cachecheck
+        docs[Claims FAQ + policy guidance] --> job
+    end
 
+    subgraph redis[Redis]
+        cachecheck --> langcache[LangCache / Redis semantic cache]
+    end
+
+    subgraph llm[LLM / RAG path]
+        livepath --> model[LLM endpoint]
+    end
+
+    langcache -- cache hit --> app
+    cachecheck -- cache miss --> livepath
+    model --> app
+    app --> user
+```
 
 ## Requirements
 
-
 ### Minimum hardware requirements
 
-<!-- CONTRIBUTOR TODO: add minimum hardware requirements
+This starter does not deploy a model in-cluster. Minimum app resources are:
 
-*Section is required.*
+- CPU: 100m request / 500m limit
+- Memory: 256Mi request / 512Mi limit
+- Storage: none required beyond normal cluster image pull and log storage
 
-Be as specific as possible. DON'T say "GPU". Be specific.
-
-List minimum hardware requirements.
-
-If your quickstart deploys a model, include its resource requirements. For example:
-
-**Main LLM (only when deploying a model with the chart):**
-- CPU: X vCPU (request) / Y vCPU (limit)
-- Memory: X GiB (request) / Y GiB (limit)
-- GPU: 1 NVIDIA GPU (e.g., A10, A100, L40S, T4, or similar)
-
-> **Note**: If users bring their own model endpoint (MaaS), the LLM resources
-and GPU are not required.
-
-If your quickstart does NOT deploy a model, just list the resources your
-application needs.
-
--->
+If you connect an external model endpoint, the model runs outside the cluster and does not require local GPU resources.
 
 ### Minimum software requirements
 
-<!-- CONTRIBUTOR TODO: add minimum software requirements
-
-*Section is required.*
-
-Be specific. Don't say "OpenShift AI". Instead, tested with OpenShift AI 2.25
-
-If you know it only works in a specific version, say so.
-
--->
+- Red Hat OpenShift 4.16+
+- Red Hat OpenShift AI 2.13+ for the broader quickstart context
+- `oc` CLI
+- `helm` 3.x
+- `podman` or `docker` to build the starter application image
 
 ### Required user permissions
 
-<!-- CONTRIBUTOR TODO: add user permissions
+The user should be able to:
 
-*Section is required. Describe the permissions the user will need. Cluster
-admin? Regular user?*
+- create a project or deploy into an existing namespace
+- create Deployments, Services, Routes, ConfigMaps, and Secrets
+- run Helm installs and Helm tests in the target namespace
 
--->
-
+Cluster-admin permissions are not required for the application itself, but may be required in some environments to provision OpenShift AI components or shared model endpoints.
 
 ## Deploy
 
 ### Prerequisites
 
 Before deploying, ensure you have:
-- Access to a Red Hat OpenShift cluster with OpenShift AI installed
-- `oc` CLI tool installed and configured
-- `helm` CLI tool installed
-- Sufficient resources available in your cluster
 
-<!-- CONTRIBUTOR TODO: add or remove prerequisites as needed -->
+- access to an OpenShift cluster with Routes enabled
+- access to an image registry that your cluster can pull from
+- optional Redis LangCache endpoint details if you want semantic cache backed by Redis instead of the in-memory FAQ fallback
+- optional OpenAI-compatible model endpoint details if you want live cache misses to call a model
 
 ### Installation
 
-1. Clone the repository:
-```bash
-git clone https://github.com/rh-ai-quickstart/YOUR_QUICKSTART_NAME.git
-cd YOUR_QUICKSTART_NAME
-```
-
-2. Create a new OpenShift project:
-```bash
-PROJECT="my-quickstart"
-oc new-project ${PROJECT}
-```
-
-3. Install using Helm:
+1. Clone the repository and move into this quickstart:
 
 ```bash
-helm install my-quickstart ./chart --namespace ${PROJECT}
+git clone https://github.com/rh-ai-quickstart/redhat-ex.git
+cd redhat-ex/Reducing-costs-of-AI-with-Redis-Labs
 ```
 
-<!-- CONTRIBUTOR TODO:
-
-Customize the installation step above to match your quickstart.
-
-Key things to update:
-- Replace "my-quickstart" and "YOUR_QUICKSTART_NAME" with your actual names
-- Add any additional --set flags specific to your quickstart
-- If your quickstart requires a model, keep the model options section below
-  and remove this comment
-- If your quickstart does NOT require a model, remove the model options section
-  below entirely
-
--->
-
-#### If your quickstart requires a model
-
-**Option A: Use your own model (MaaS - Model as a Service)**
-
-If you have an existing model endpoint, provide the model name, endpoint, and API key:
-```bash
-helm install my-quickstart ./chart --namespace ${PROJECT} \
-  --set model.name=YOUR_MODEL_NAME \
-  --set model.endpoint=YOUR_MODEL_ENDPOINT \
-  --set model.api_key=YOUR_API_KEY
-```
-
-> **Note**: The `model.endpoint` should be the full URL including protocol and port if needed (e.g., `https://my-model.example.com` or `http://my-model:8080`).
-
-**Option B: Deploy with a model included in the chart**
-
-If you don't provide any model configuration, the chart will deploy a default model on your cluster:
-```bash
-helm install my-quickstart ./chart --namespace ${PROJECT}
-```
-
-> **Note**: Option B requires a GPU available in your cluster for the LLM deployment. See [Minimum hardware requirements](#minimum-hardware-requirements) for details. You must add your own model InferenceService template under `chart/templates/` for this option to work.
-
-#### Testing model access (before deploying)
-
-If you are bringing your own model (Option A), you can verify the endpoint is reachable **before** installing the chart:
+2. Build and push the starter image:
 
 ```bash
-oc run test-model-access --rm -it --restart=Never \
-  --image=registry.access.redhat.com/ubi9/ubi-minimal:latest \
-  -- /bin/sh -c 'curl -sf --max-time 10 \
-    -H "Authorization: Bearer YOUR_API_KEY" \
-    -H "Content-Type: application/json" \
-    -d "{\"model\": \"YOUR_MODEL_NAME\", \"messages\": [{\"role\": \"user\", \"content\": \"Say hello in one word.\"}], \"max_tokens\": 10}" \
-    "YOUR_MODEL_ENDPOINT/v1/chat/completions" && echo "" && echo "SUCCESS" || echo "FAILED"'
+IMAGE="quay.io/<your-org>/redis-insurance-assistant:0.1"
+podman build -t "$IMAGE" -f app/Containerfile .
+podman push "$IMAGE"
 ```
 
-Replace `YOUR_API_KEY`, `YOUR_MODEL_NAME`, and `YOUR_MODEL_ENDPOINT` with your actual values.
+3. Create a project:
+
+```bash
+PROJECT="redis-insurance-demo"
+oc new-project "$PROJECT"
+```
+
+4. Install the chart with the starter image:
+
+```bash
+helm install redis-insurance ./chart --namespace "$PROJECT" \
+  --set app.image.repository="quay.io/<your-org>/redis-insurance-assistant" \
+  --set app.image.tag="0.1"
+```
+
+5. To enable Redis LangCache, add your LangCache settings:
+
+```bash
+helm upgrade --install redis-insurance ./chart --namespace "$PROJECT" \
+  --set app.image.repository="quay.io/<your-org>/redis-insurance-assistant" \
+  --set app.image.tag="0.1" \
+  --set langcache.enabled=true \
+  --set langcache.serverUrl="https://<langcache-host>" \
+  --set langcache.cacheId="<cache-id>" \
+  --set langcache.apiKey="<api-key>"
+```
+
+6. To enable live model calls on cache misses, add a compatible endpoint:
+
+```bash
+helm upgrade --install redis-insurance ./chart --namespace "$PROJECT" \
+  --set app.image.repository="quay.io/<your-org>/redis-insurance-assistant" \
+  --set app.image.tag="0.1" \
+  --set model.name="granite-3-1-8b-instruct" \
+  --set model.endpoint="https://<model-endpoint>" \
+  --set model.apiKey="<api-key>"
+```
+
+> For a real deployment, prefer a private values file instead of putting API keys directly on the command line.
 
 ### Validating the deployment
 
-After installing the chart, you can run the included Helm test to verify model connectivity:
+Run the Helm tests:
 
 ```bash
-helm test my-quickstart --namespace ${PROJECT}
+helm test redis-insurance --namespace "$PROJECT"
 ```
 
-<!-- CONTRIBUTOR TODO: add additional validation steps specific to your quickstart,
-such as checking routes, accessing a UI, etc. For example:
+Get the route URL:
 
 ```bash
-echo https://$(oc get route/my-app -n ${PROJECT} --template='{{.spec.host}}')
+APP_URL="https://$(oc get route redis-insurance-redis-insurance-claims-assistant -n "$PROJECT" -o jsonpath='{.spec.host}')"
+echo "$APP_URL"
 ```
 
-If your quickstart does not use a model, remove the helm test step above
-and add your own validation steps.
--->
+Check health and sample questions:
+
+```bash
+curl -s "$APP_URL/healthz" | jq
+curl -s "$APP_URL/sample-questions" | jq
+```
+
+Warm the Redis cache after install when LangCache is configured:
+
+```bash
+curl -s -X POST "$APP_URL/warmup" | jq
+```
 
 ### Uninstall
 
 To remove the deployment:
+
 ```bash
-helm uninstall my-quickstart --namespace ${PROJECT}
+helm uninstall redis-insurance --namespace "$PROJECT"
 ```
 
 ## Repository structure
 
-```
+```text
 .
-├── chart/                    # Helm chart for deploying the quickstart
-│   ├── Chart.yaml            # Chart metadata
-│   ├── values.yaml           # Default configuration values (model info, resources, etc.)
-│   └── templates/            # Kubernetes resource templates
-│       ├── test-model-access.yaml  # Helm test for verifying model connectivity
-│       └── ...               # Add your templates here (deployments, services, etc.)
+├── app/
+│   ├── Containerfile
+│   ├── assistant.py
+│   ├── server.py
+│   └── tests/
+├── chart/
+│   ├── Chart.yaml
+│   ├── values.yaml
+│   └── templates/
+│       ├── _helpers.tpl
+│       ├── configmap.yaml
+│       ├── deployment.yaml
+│       ├── route.yaml
+│       ├── secret.yaml
+│       ├── service.yaml
+│       ├── test-app-health.yaml
+│       └── test-model-access.yaml
+├── data/
+│   └── insurance_faq.json
 ├── docs/
-│   └── images/               # Architecture diagrams and screenshots
+│   ├── images/
+│   │   └── insurance-claims-semantic-cache.mmd
+│   └── redhat-insurance-semantic-cache-proposal.md
+├── 04_langcache_semantic_caching.ipynb
+├── redis-spec.md
 └── README.md
 ```
 
-<!-- CONTRIBUTOR TODO:
-
-Update the tree above to reflect your actual structure.
-
-The `chart/` folder is where your Helm chart lives. At minimum it should contain:
-- Chart.yaml with your chart metadata
-- values.yaml with your configurable values (include model configuration only
-  if your quickstart requires a model)
-- templates/ with your Kubernetes resource templates
-
-If your quickstart includes application source code (e.g., a web UI, API server),
-add it as a sibling directory to chart/. For example:
-  ├── my-app/                 # Application source code
-  │   ├── app.py
-  │   ├── Containerfile
-  │   └── requirements.txt
-
--->
-
 ## References
 
-<!--
-
-*Section optional.* Remember to remove if do not use.
-
-Include links to supporting information, documentation, or learning materials.
-
--->
+- Redis LangCache semantic caching notebook: `04_langcache_semantic_caching.ipynb`
+- Technical spec and scope: `redis-spec.md`
+- Partner proposal: `docs/redhat-insurance-semantic-cache-proposal.md`
+- Redis LangCache API examples: https://redis.io/docs/latest/develop/ai/langcache/api-examples/
 
 ## Technical details
 
-<!--
+### Current starter behavior
 
-*Section is optional.*
+- stable FAQ questions use a cache-first flow
+- temporal or claim-specific questions bypass semantic cache
+- if LangCache is not configured, the app falls back to a local curated FAQ dataset
+- if a compatible model endpoint is configured, cache misses can call `/v1/chat/completions`
 
-Here is your chance to share technical details.
+### API endpoints
 
-Welcome to add sections as needed. Keep additions as structured and consistent as possible.
+- `GET /healthz` returns service health and cache configuration state
+- `GET /sample-questions` returns example cacheable and bypass questions
+- `POST /ask` classifies and answers a question
+- `POST /warmup` preloads LangCache with curated FAQ entries
 
--->
+### Important limitations in v1
+
+- this starter is intentionally scoped to stable claims FAQ guidance
+- it does not integrate with a real claims system of record
+- claim status, payout amount, and adjuster assignment remain live-path use cases
+- the evaluation notebook/job described in the spec is still a follow-on implementation item
 
 ## Tags
 
-<!-- CONTRIBUTOR TODO: add metadata and tags for publication
-
-TAG requirements:
-	* Title: max char: 64, describes quickstart (match H1 heading)
-	* Description: max char: 160, match SHORT DESCRIPTION above
-	* Industry: target industry, ie. Healthcare OR Financial Services
-	* Product: list primary product, ie. OpenShift AI OR OpenShift OR RHEL
-	* Use case: use case descriptor, ie. security, automation,
-	* Contributor org: defaults to Red Hat unless partner or community
-
-Additional MIST tags, populated by web team.
-
--->
+- Title: Reduce insurance claims AI cost with Redis semantic cache
+- Description: Deploy an insurance claims FAQ assistant on OpenShift AI that serves stable questions from Redis semantic cache and routes live claim questions to a fresh-answer path.
+- Industry: Financial Services / Insurance
+- Product: OpenShift AI, OpenShift, Redis
+- Use case: semantic caching, cost optimization, generative AI
+- Contributor org: Redis
