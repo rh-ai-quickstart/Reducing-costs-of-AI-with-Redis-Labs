@@ -1,0 +1,58 @@
+[
+  {
+    "intent": "auto-claim-documents",
+    "category": "auto",
+    "question": "What documents do I need to file an auto claim?",
+    "answer": "Most carriers ask for the date and location of the incident, policy information, photos if available, a description of what happened, and any police or incident report number.",
+    "keywords": ["documents", "file", "auto", "claim", "photos", "report"],
+    "cacheable": true
+  },
+  {
+    "intent": "windshield-photos",
+    "category": "auto",
+    "question": "Do I need photos for a windshield claim?",
+    "answer": "Photos are usually recommended because they help document the damage, but exact requirements depend on the carrier and repair workflow.",
+    "keywords": ["photos", "windshield", "glass", "claim", "damage"],
+    "cacheable": true
+  },
+  {
+    "intent": "rental-reimbursement",
+    "category": "auto",
+    "question": "When does rental reimbursement apply?",
+    "answer": "Rental reimbursement typically applies when the policy includes that coverage and the covered vehicle is unavailable because of a qualifying claim.",
+    "keywords": ["rental", "reimbursement", "coverage", "vehicle", "qualifying"],
+    "cacheable": true
+  },
+  {
+    "intent": "deductible-timing",
+    "category": "claims-process",
+    "question": "When do I pay my deductible?",
+    "answer": "The deductible is usually applied when the claim is settled or when repairs are completed, depending on the type of claim and carrier workflow.",
+    "keywords": ["deductible", "pay", "settled", "repairs", "claim"],
+    "cacheable": true
+  },
+  {
+    "intent": "after-submission",
+    "category": "claims-process",
+    "question": "What happens after I submit a claim?",
+    "answer": "After submission, the carrier reviews the claim details, confirms coverage, requests any missing documents, and then guides the customer through next steps such as inspection or repair.",
+    "keywords": ["after", "submit", "claim", "review", "coverage", "inspection"],
+    "cacheable": true
+  },
+  {
+    "intent": "home-repairs",
+    "category": "homeowners",
+    "question": "Can I make temporary repairs after home damage?",
+    "answer": "Temporary repairs to prevent additional damage are often encouraged, but customers should keep receipts and document the damage before making major repairs.",
+    "keywords": ["temporary", "repairs", "home", "damage", "receipts"],
+    "cacheable": true
+  },
+  {
+    "intent": "claim-contact",
+    "category": "claims-process",
+    "question": "How should I contact my insurer after an accident?",
+    "answer": "Customers should use the insurer's claims phone number, mobile app, or web portal and provide accurate incident details as soon as it is safe to do so.",
+    "keywords": ["contact", "insurer", "accident", "phone", "app", "portal"],
+    "cacheable": true
+  }
+]
