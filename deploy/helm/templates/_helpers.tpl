@@ -1,8 +1,8 @@
-{{- define "reducing-costs-notebook.name" -}}
+{{- define "redis-notebook.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{- define "reducing-costs-notebook.fullname" -}}
+{{- define "redis-notebook.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -15,27 +15,27 @@
 {{- end }}
 {{- end }}
 
-{{- define "reducing-costs-notebook.chart" -}}
+{{- define "redis-notebook.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{- define "reducing-costs-notebook.labels" -}}
-helm.sh/chart: {{ include "reducing-costs-notebook.chart" . }}
-{{ include "reducing-costs-notebook.selectorLabels" . }}
+{{- define "redis-notebook.labels" -}}
+helm.sh/chart: {{ include "redis-notebook.chart" . }}
+{{ include "redis-notebook.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
-{{- define "reducing-costs-notebook.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "reducing-costs-notebook.name" . }}
+{{- define "redis-notebook.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "redis-notebook.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-{{- define "reducing-costs-notebook.serviceAccountName" -}}
+{{- define "redis-notebook.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "reducing-costs-notebook.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "redis-notebook.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}

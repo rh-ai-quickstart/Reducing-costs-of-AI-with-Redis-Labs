@@ -9,8 +9,8 @@ ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 CHART_DIR ?= $(ROOT_DIR)
 VALUES_FILE ?= $(CHART_DIR)/values.yaml
 
-NAMESPACE ?= reducing-costs-notebook
-RELEASE_NAME ?= reducing-costs-notebook
+NAMESPACE ?= redis-notebook
+RELEASE_NAME ?= redis-notebook
 TIMEOUT ?= 10m
 
 KUBECTL := $(shell command -v oc 2>/dev/null)
@@ -23,7 +23,7 @@ endif
 
 .PHONY: help
 help: ## Show targets and current settings
-	@echo "Reducing-costs notebook (OpenShift) — $(PLATFORM), CLI=$(KUBECTL)"
+	@echo "Redis notebook (OpenShift) — $(PLATFORM), CLI=$(KUBECTL)"
 	@echo "  NAMESPACE=$(NAMESPACE)  RELEASE_NAME=$(RELEASE_NAME)"
 	@echo "  CHART_DIR=$(CHART_DIR)"
 	@echo ""

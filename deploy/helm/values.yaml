@@ -11,6 +11,16 @@ serviceAccount:
 rbac:
   create: true
 
+# Override with deploy/helm/values-secrets.yaml (do not commit real keys).
+secrets:
+  model:
+    apiKey: ""
+    endpoint: "https://api.openai.com"
+    complexModelName: "gpt-5"
+    simpleModelName: "gpt-4.1"
+  redis:
+    url: "redis://localhost:6379"
+
 notebook:
   enabled: true
   username: "admin"

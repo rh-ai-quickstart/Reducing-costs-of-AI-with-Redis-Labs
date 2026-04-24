@@ -12,7 +12,7 @@ This folder contains a small **Helm chart** that provisions an **OpenShift AI (R
 
 | Path | Purpose |
 |------|---------|
-| `helm/Chart.yaml` | Chart metadata (`reducing-costs-notebook`). |
+| `helm/Chart.yaml` | Chart metadata (`redis-notebook`). |
 | `helm/values.yaml` | Defaults for notebook image, PVC, resources, and git clone. |
 | `helm/templates/` | Kubernetes / OpenShift manifests (Notebook, PVC, RBAC, clone Job). |
 | `helm/Makefile` | Optional shortcuts for lint, template, deploy, and undeploy. |
@@ -26,7 +26,7 @@ make -f deploy/helm/Makefile help
 make -f deploy/helm/Makefile deploy
 ```
 
-Defaults: **namespace** and **release name** `reducing-costs-notebook`. Override as needed:
+Defaults: **namespace** and **release name** `redis-notebook`. Override as needed:
 
 ```bash
 make -f deploy/helm/Makefile deploy NAMESPACE=my-project RELEASE_NAME=my-release
@@ -42,9 +42,9 @@ Useful targets:
 ## Quick deploy (Helm only)
 
 ```bash
-oc new-project reducing-costs-notebook   # or choose your own namespace
-helm upgrade --install reducing-costs-notebook ./deploy/helm \
-  --namespace reducing-costs-notebook \
+oc new-project redis-notebook   # or choose your own namespace
+helm upgrade --install redis-notebook ./deploy/helm \
+  --namespace redis-notebook \
   --values ./deploy/helm/values.yaml \
   --wait --timeout 10m
 ```
@@ -73,8 +73,8 @@ Disable the clone Job by setting `notebook.gitSync.enabled: false` in a custom v
 Example override for a fork:
 
 ```bash
-helm upgrade --install reducing-costs-notebook ./deploy/helm \
-  --namespace reducing-costs-notebook \
+helm upgrade --install redis-notebook ./deploy/helm \
+  --namespace redis-notebook \
   --set notebook.gitSync.repo=https://github.com/<org>/Reducing-costs-of-AI-with-Redis-Labs.git \
   --set notebook.gitSync.branch=main
 ```
@@ -89,7 +89,7 @@ helm upgrade --install reducing-costs-notebook ./deploy/helm \
 ```bash
 make -f deploy/helm/Makefile undeploy
 # or
-helm uninstall reducing-costs-notebook --namespace reducing-costs-notebook
+helm uninstall redis-notebook --namespace redis-notebook
 ```
 
 Delete the namespace separately if you no longer need it; delete any retained PVCs if you want a full cleanup of stored workspace data.
