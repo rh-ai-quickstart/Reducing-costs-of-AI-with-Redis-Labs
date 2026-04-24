@@ -1,0 +1,17 @@
+{{- if and .Values.redis.builtin.enabled (not .Values.redis.useOtContainerKitOperator) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "redis-notebook.redisBuiltinName" . }}
+  labels:
+    {{- include "redis-notebook.redisBuiltinLabels" . | nindent 4 }}
+spec:
+  type: {{ .Values.redis.builtin.service.type }}
+  selector:
+    {{- include "redis-notebook.redisBuiltinSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: redis
+      port: {{ .Values.redis.builtin.service.port }}
+      targetPort: redis
+      protocol: TCP
+{{- end }}

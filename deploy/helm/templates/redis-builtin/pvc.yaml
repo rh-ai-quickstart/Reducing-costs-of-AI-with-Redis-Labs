@@ -1,0 +1,17 @@
+{{- if and .Values.redis.builtin.enabled (not .Values.redis.useOtContainerKitOperator) .Values.redis.builtin.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "redis-notebook.redisBuiltinName" . }}
+  labels:
+    {{- include "redis-notebook.redisBuiltinLabels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.redis.builtin.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.redis.builtin.persistence.size }}
+  {{- if .Values.redis.builtin.persistence.storageClassName }}
+  storageClassName: {{ .Values.redis.builtin.persistence.storageClassName | quote }}
+  {{- end }}
+{{- end }}

@@ -3,24 +3,58 @@ fullnameOverride: ""
 
 global:
   openshift: true
-  # Used in REDIS_URL when redis.enabled (Kubernetes / OpenShift service DNS).
   clusterDomain: cluster.local
 
-# In-cluster Redis: OT-CONTAINER-KIT redis-operator + Redis standalone (subcharts).
-# Run: helm dependency update ./deploy/helm  (or: make -f deploy/helm/Makefile deps)
-# Set redis.enabled: false to use an external Redis only (set secrets.redis.url).
+# Redis for notebooks: pick one primary path.
+#
+# 1) Builtin Redis Stack (default): in-chart Deployment + Service — no cluster-wide
+#    operator, no helm dependency on OT charts. Good for demos and redisvl.
+#    Set redis.useOtContainerKitOperator: false and redis.builtin.enabled: true
+#
+# 2) OT-CONTAINER-KIT operator + Redis CR: set redis.useOtContainerKitOperator: true,
+#    run `make -f deploy/helm/Makefile deps`, see deploy/README.md for admin notes.
+#
+# 3) External only: redis.useOtContainerKitOperator: false, redis.builtin.enabled: false,
+#    set secrets.redis.url to your broker URL.
 redis:
-  enabled: true
+  useOtContainerKitOperator: false
+
+  builtin:
+    enabled: true
+    image:
+      repository: docker.io/redis/redis-stack-server
+      tag: "7.4.0-v3"
+      pullPolicy: IfNotPresent
+    args: []
+    service:
+      type: ClusterIP
+      port: 6379
+    resources:
+      limits:
+        cpu: "1"
+        memory: 2Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    persistence:
+      enabled: false
+      size: 5Gi
+      accessMode: ReadWriteOnce
+      storageClassName: ""
+    podAnnotations: {}
+    podSecurityContext: {}
+    containerSecurityContext: {}
+
+  connectionConfigMap:
+    enabled: true
+    name: ""
 
 redis-operator:
   redisOperator:
-    # Restrict the operator to this release namespace (recommended on shared clusters).
-    # Override at install time, e.g. --set redis-operator.redisOperator.watchNamespace=my-project
     watchNamespace: ""
 
 redisData:
   redisStandalone:
-    # If empty, the Redis CR name (and Service DNS name) defaults to the Helm release name.
     name: ""
   storageSpec:
     volumeClaimTemplate:
@@ -38,7 +72,6 @@ serviceAccount:
 rbac:
   create: true
 
-# Override with deploy/helm/values-secrets.yaml (do not commit real keys).
 secrets:
   model:
     apiKey: ""
@@ -72,5 +105,5 @@ notebook:
   gitSync:
     enabled: true
     repo: "https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs.git"
-    branch: "redis/robert/ex" # TODO: Change to main
+    branch: "main"
     image: "alpine/git:latest"

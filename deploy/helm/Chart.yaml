@@ -1,6 +1,8 @@
 apiVersion: v2
 name: redis-notebook
-description: OpenShift AI Notebook with Redis semantic cache and git clone of the Redis Cost Reduction demo
+description: >-
+  OpenShift AI Notebook with Redis for the cost-reduction demo: in-chart Redis Stack (default),
+  optional OT-CONTAINER-KIT operator + Redis CR, or external Redis URL; git-clones demo notebooks.
 type: application
 version: 0.1.0
 appVersion: "1.0"
@@ -9,6 +11,7 @@ keywords:
   - openshift-ai
   - jupyter
   - redis
+  - redis-stack
 home: https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs
 maintainers:
   - name: Red Hat AI Quickstart Team
@@ -16,9 +19,9 @@ dependencies:
   - name: redis-operator
     version: 0.24.0
     repository: https://ot-container-kit.github.io/helm-charts/
-    condition: redis.operator.enabled
+    condition: redis.useOtContainerKitOperator
   - name: redis
     alias: redisData
     version: 0.16.9
     repository: https://ot-container-kit.github.io/helm-charts/
-    condition: redis.enabled
+    condition: redis.useOtContainerKitOperator

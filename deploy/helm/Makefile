@@ -30,7 +30,7 @@ help: ## Show targets and current settings
 	@awk 'BEGIN {FS = ":.*##"; printf "Targets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 .PHONY: deps
-deps: ## helm dependency update (packages charts/redis-operator, charts/redis)
+deps: ## helm dependency update (OT subcharts; only needed when redis.useOtContainerKitOperator is true)
 	helm dependency update $(CHART_DIR)
 
 .PHONY: lint
