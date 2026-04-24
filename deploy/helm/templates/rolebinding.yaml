@@ -2,9 +2,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ include "reducing-costs-notebook.fullname" . }}-edit
+  name: {{ include "redis-notebook.fullname" . }}-edit
   labels:
-    {{- include "reducing-costs-notebook.labels" . | nindent 4 }}
+    {{- include "redis-notebook.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation
@@ -14,6 +14,6 @@ roleRef:
   name: edit
 subjects:
   - kind: ServiceAccount
-    name: {{ include "reducing-costs-notebook.serviceAccountName" . }}
+    name: {{ include "redis-notebook.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 {{- end }}

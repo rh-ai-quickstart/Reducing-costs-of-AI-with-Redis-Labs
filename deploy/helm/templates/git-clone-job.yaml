@@ -2,10 +2,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "reducing-costs-notebook.fullname" . }}-clone-notebooks
+  name: {{ include "redis-notebook.fullname" . }}-clone-notebooks
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "reducing-costs-notebook.labels" . | nindent 4 }}
+    {{- include "redis-notebook.labels" . | nindent 4 }}
     app.kubernetes.io/component: notebook
   annotations:
     "helm.sh/hook": post-install,post-upgrade
@@ -16,10 +16,10 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "reducing-costs-notebook.selectorLabels" . | nindent 8 }}
+        {{- include "redis-notebook.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: notebook-setup
     spec:
-      serviceAccountName: {{ include "reducing-costs-notebook.serviceAccountName" . }}
+      serviceAccountName: {{ include "redis-notebook.serviceAccountName" . }}
       restartPolicy: OnFailure
       initContainers:
         - name: wait-for-pvc
@@ -97,5 +97,5 @@ spec:
       volumes:
         - name: workspace
           persistentVolumeClaim:
-            claimName: {{ include "reducing-costs-notebook.fullname" . }}-notebook-pvc
+            claimName: {{ include "redis-notebook.fullname" . }}-notebook-pvc
 {{- end }}

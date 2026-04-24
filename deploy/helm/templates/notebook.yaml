@@ -2,10 +2,10 @@
 apiVersion: kubeflow.org/v1
 kind: Notebook
 metadata:
-  name: {{ include "reducing-costs-notebook.fullname" . }}-notebook
+  name: {{ include "redis-notebook.fullname" . }}-notebook
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "reducing-costs-notebook.labels" . | nindent 4 }}
+    {{- include "redis-notebook.labels" . | nindent 4 }}
     app.kubernetes.io/component: notebook
     opendatahub.io/dashboard: "true"
     opendatahub.io/odh-managed: "true"
@@ -16,9 +16,9 @@ metadata:
 spec:
   template:
     spec:
-      serviceAccountName: {{ include "reducing-costs-notebook.serviceAccountName" . }}
+      serviceAccountName: {{ include "redis-notebook.serviceAccountName" . }}
       containers:
-        - name: {{ include "reducing-costs-notebook.fullname" . }}-notebook
+        - name: {{ include "redis-notebook.fullname" . }}-notebook
           image: {{ .Values.notebook.image.repository }}:{{ .Values.notebook.image.tag }}
           imagePullPolicy: {{ .Values.notebook.image.pullPolicy }}
           workingDir: /opt/app-root/src
@@ -28,7 +28,7 @@ spec:
                 --ServerApp.port=8888
                 --ServerApp.token=''
                 --ServerApp.password=''
-                --ServerApp.base_url=/notebook/{{ .Release.Namespace }}/{{ include "reducing-costs-notebook.fullname" . }}-notebook
+                --ServerApp.base_url=/notebook/{{ .Release.Namespace }}/{{ include "redis-notebook.fullname" . }}-notebook
                 --ServerApp.quit_button=False
             - name: RESTARTABLE
               value: "yes"
@@ -70,7 +70,7 @@ spec:
           startupProbe:
             httpGet:
               scheme: HTTP
-              path: /notebook/{{ .Release.Namespace }}/{{ include "reducing-costs-notebook.fullname" . }}-notebook/api
+              path: /notebook/{{ .Release.Namespace }}/{{ include "redis-notebook.fullname" . }}-notebook/api
               port: notebook-port
             initialDelaySeconds: 30
             periodSeconds: 10
@@ -85,7 +85,7 @@ spec:
             failureThreshold: 3
             httpGet:
               scheme: HTTP
-              path: /notebook/{{ .Release.Namespace }}/{{ include "reducing-costs-notebook.fullname" . }}-notebook/api
+              path: /notebook/{{ .Release.Namespace }}/{{ include "redis-notebook.fullname" . }}-notebook/api
               port: notebook-port
           readinessProbe:
             initialDelaySeconds: 60
@@ -95,7 +95,7 @@ spec:
             failureThreshold: 3
             httpGet:
               scheme: HTTP
-              path: /notebook/{{ .Release.Namespace }}/{{ include "reducing-costs-notebook.fullname" . }}-notebook/api
+              path: /notebook/{{ .Release.Namespace }}/{{ include "redis-notebook.fullname" . }}-notebook/api
               port: notebook-port
           volumeMounts:
             - name: workspace
@@ -107,7 +107,7 @@ spec:
       volumes:
         - name: workspace
           persistentVolumeClaim:
-            claimName: {{ include "reducing-costs-notebook.fullname" . }}-notebook-pvc
+            claimName: {{ include "redis-notebook.fullname" . }}-notebook-pvc
         {{- if .Values.notebook.shm.enabled }}
         - name: shm
           emptyDir:

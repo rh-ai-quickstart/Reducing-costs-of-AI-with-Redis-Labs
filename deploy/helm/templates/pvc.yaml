@@ -2,10 +2,10 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "reducing-costs-notebook.fullname" . }}-notebook-pvc
+  name: {{ include "redis-notebook.fullname" . }}-notebook-pvc
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "reducing-costs-notebook.labels" . | nindent 4 }}
+    {{- include "redis-notebook.labels" . | nindent 4 }}
     app.kubernetes.io/component: notebook
     opendatahub.io/dashboard: "true"
   annotations:
