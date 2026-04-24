@@ -1,9 +1,9 @@
 # OpenShift AI notebook Helm chart — thin wrapper around helm/oc
 #
 # Usage (from anywhere):
-#   make -f deploy/helm/openshift/Makefile deploy
+#   make -f deploy/helm/Makefile deploy
 # Or:
-#   cd deploy/helm/openshift && make deploy
+#   cd deploy/helm && make deploy
 
 ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 CHART_DIR ?= $(ROOT_DIR)
@@ -29,6 +29,10 @@ help: ## Show targets and current settings
 	@echo ""
 	@awk 'BEGIN {FS = ":.*##"; printf "Targets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
+.PHONY: deps
+deps: ## helm dependency update (packages charts/redis-operator, charts/redis)
+	helm dependency update $(CHART_DIR)
+
 .PHONY: lint
 lint: ## helm lint
 	helm lint $(CHART_DIR)
@@ -46,13 +50,18 @@ create-namespace: ## Create project/namespace
 	fi
 
 .PHONY: deploy
-deploy: create-namespace ## helm upgrade --install
+deploy: deps create-namespace ## helm dependency update + upgrade --install
 	helm upgrade --install $(RELEASE_NAME) $(CHART_DIR) \
 		--namespace $(NAMESPACE) \
 		--values $(VALUES_FILE) \
 		--wait \
 		--timeout $(TIMEOUT)
 	@echo "Done. Pods: $(KUBECTL) get pods -n $(NAMESPACE)"
+
+.PHONY: logs-clone
+logs-clone: ## Logs from the git-clone post-install Job pods (if any)
+	@$(KUBECTL) logs -n $(NAMESPACE) -l app.kubernetes.io/component=notebook-setup --tail=200 --all-containers=true 2>/dev/null || \
+		echo "No clone job pods found in $(NAMESPACE)."
 
 .PHONY: undeploy
 undeploy: ## helm uninstall (namespace left in place)

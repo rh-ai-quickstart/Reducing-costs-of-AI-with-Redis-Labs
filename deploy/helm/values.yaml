@@ -3,6 +3,33 @@ fullnameOverride: ""
 
 global:
   openshift: true
+  # Used in REDIS_URL when redis.enabled (Kubernetes / OpenShift service DNS).
+  clusterDomain: cluster.local
+
+# In-cluster Redis: OT-CONTAINER-KIT redis-operator + Redis standalone (subcharts).
+# Run: helm dependency update ./deploy/helm  (or: make -f deploy/helm/Makefile deps)
+# Set redis.enabled: false to use an external Redis only (set secrets.redis.url).
+redis:
+  enabled: true
+
+redis-operator:
+  redisOperator:
+    # Restrict the operator to this release namespace (recommended on shared clusters).
+    # Override at install time, e.g. --set redis-operator.redisOperator.watchNamespace=my-project
+    watchNamespace: ""
+
+redisData:
+  redisStandalone:
+    # If empty, the Redis CR name (and Service DNS name) defaults to the Helm release name.
+    name: ""
+  storageSpec:
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
 
 serviceAccount:
   create: true
@@ -42,12 +69,8 @@ notebook:
     size: 20Gi
     storageClassName: ""
 
-  shm:
-    enabled: true
-    size: 2Gi
-
   gitSync:
     enabled: true
     repo: "https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs.git"
-    branch: "main"
+    branch: "redis/robert/ex" # TODO: Change to main
     image: "alpine/git:latest"

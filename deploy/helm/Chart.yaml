@@ -12,3 +12,13 @@ keywords:
 home: https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs
 maintainers:
   - name: Red Hat AI Quickstart Team
+dependencies:
+  - name: redis-operator
+    version: 0.24.0
+    repository: https://ot-container-kit.github.io/helm-charts/
+    condition: redis.operator.enabled
+  - name: redis
+    alias: redisData
+    version: 0.16.9
+    repository: https://ot-container-kit.github.io/helm-charts/
+    condition: redis.enabled

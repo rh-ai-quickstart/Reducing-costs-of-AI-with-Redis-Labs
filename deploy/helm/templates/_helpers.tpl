@@ -40,3 +40,17 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Redis connection URL for notebooks: in-cluster OT operator Redis, or secrets.redis.url when redis.enabled is false.
+Service host matches the Redis CR name (redisData.redisStandalone.name, defaulting to the Helm release name).
+*/}}
+{{- define "redis-notebook.redisUrl" -}}
+{{- if .Values.redis.enabled }}
+{{- $name := .Values.redisData.redisStandalone.name | default .Release.Name }}
+{{- $domain := .Values.global.clusterDomain | default "cluster.local" }}
+{{- printf "redis://%s.%s.svc.%s:6379" $name .Release.Namespace $domain }}
+{{- else }}
+{{- .Values.secrets.redis.url }}
+{{- end }}
+{{- end }}
