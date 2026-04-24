@@ -27,11 +27,7 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     """Shallow-compatible merge: override keys replace base; nested dicts merge recursively."""
     out: dict[str, Any] = dict(base)
     for key, val in override.items():
-        if (
-            key in out
-            and isinstance(out[key], dict)
-            and isinstance(val, dict)
-        ):
+        if key in out and isinstance(out[key], dict) and isinstance(val, dict):
             out[key] = _deep_merge(out[key], val)
         else:
             out[key] = val
@@ -69,16 +65,24 @@ def main() -> None:
 
     errors: list[str] = []
 
-    if not _nonempty_str(model.get("simpleApiKey") or not _nonempty_str(model.get("complexApiKey"))):
+    if not _nonempty_str(
+        model.get("simpleApiKey") or not _nonempty_str(model.get("complexApiKey"))
+    ):
         errors.append(
             "secrets.model.simpleApiKey and secrets.model.complexApiKey must be a non-empty string (your LLM API key)."
         )
 
-    for key in ("endpoint", "complexModelName", "simpleModelName", "simpleEndpoint", "complexEndpoint"):
+    for key in (
+        "endpoint",
+        "complexModelName",
+        "simpleModelName",
+        "simpleEndpoint",
+        "complexEndpoint",
+    ):
         if not _nonempty_str(model.get(key)):
             errors.append(
                 f"secrets.model.{key} must be set and non-empty "
-                f"(not null, not \"\"); check {secret_path.name} after merge with {base_path.name}."
+                f'(not null, not ""); check {secret_path.name} after merge with {base_path.name}.'
             )
 
     redis_cfg = merged.get("redis") or {}
