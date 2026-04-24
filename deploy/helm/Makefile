@@ -5,9 +5,11 @@
 # Or:
 #   cd deploy/helm && make deploy
 
-ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+# Strip trailing slash from $(dir ...) so paths like $(CHART_DIR)/values.yaml stay clean.
+ROOT_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 CHART_DIR ?= $(ROOT_DIR)
 VALUES_FILE ?= $(CHART_DIR)/values.yaml
+VALUES_SECRET_FILE ?= $(CHART_DIR)/values-secret.yaml
 
 NAMESPACE ?= redis-notebook
 RELEASE_NAME ?= redis-notebook
@@ -26,6 +28,8 @@ help: ## Show targets and current settings
 	@echo "Redis notebook (OpenShift) — $(PLATFORM), CLI=$(KUBECTL)"
 	@echo "  NAMESPACE=$(NAMESPACE)  RELEASE_NAME=$(RELEASE_NAME)"
 	@echo "  CHART_DIR=$(CHART_DIR)"
+	@echo "  VALUES_FILE=$(VALUES_FILE)"
+	@echo "  VALUES_SECRET_FILE=$(VALUES_SECRET_FILE)  (required for deploy)"
 	@echo ""
 	@awk 'BEGIN {FS = ":.*##"; printf "Targets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
@@ -49,11 +53,26 @@ create-namespace: ## Create project/namespace
 		$(KUBECTL) create namespace $(NAMESPACE) 2>/dev/null || true; \
 	fi
 
+.PHONY: check-secrets
+check-secrets: ## Fail if values-secret.yaml is missing (required for deploy)
+	@if [ ! -f "$(VALUES_SECRET_FILE)" ]; then \
+		echo "error: $(VALUES_SECRET_FILE) not found." >&2; \
+		echo "Create it before deploy, e.g.:" >&2; \
+		echo "  cp $(CHART_DIR)/values-secret.example.yaml $(VALUES_SECRET_FILE)" >&2; \
+		echo "Then edit $(VALUES_SECRET_FILE) and set secrets.model.apiKey (and other overrides as needed)." >&2; \
+		exit 1; \
+	fi
+
+.PHONY: validate-secrets
+validate-secrets: check-secrets ## Fail if merged values have null/empty required secrets.* fields
+	python3 "$(CHART_DIR)/scripts/validate_secrets.py" "$(VALUES_FILE)" "$(VALUES_SECRET_FILE)"
+
 .PHONY: deploy
-deploy: deps create-namespace ## helm dependency update + upgrade --install
+deploy: validate-secrets deps create-namespace ## validate secrets + helm upgrade --install
 	helm upgrade --install $(RELEASE_NAME) $(CHART_DIR) \
 		--namespace $(NAMESPACE) \
 		--values $(VALUES_FILE) \
+		--values $(VALUES_SECRET_FILE) \
 		--wait \
 		--timeout $(TIMEOUT)
 	@echo "Done. Pods: $(KUBECTL) get pods -n $(NAMESPACE)"

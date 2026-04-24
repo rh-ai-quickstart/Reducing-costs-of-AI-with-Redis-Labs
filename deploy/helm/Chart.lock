@@ -5,5 +5,5 @@ dependencies:
 - name: redis
   repository: https://ot-container-kit.github.io/helm-charts/
   version: 0.16.9
-digest: sha256:a3ae945fc0af48eb52a963c596a5e3d72e82cf11d19094bb0c416cbd002d4eab
-generated: "2026-04-24T10:16:31.779309-04:00"
+digest: sha256:80c2c58192dbed855a030c0113d7ed92675f604619534b0e66817c0e1a263104
+generated: "2026-04-24T15:46:23.534216-04:00"
