@@ -1,3 +1,4 @@
 kube-config.yaml
 .env
 redisvl_examples
+.venv
