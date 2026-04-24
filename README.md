@@ -4,35 +4,75 @@ When starting out with AI systems, it's easy to lose track of the use case and m
 
 ## Overview
 
-This quickstart demonstrates a practical Red Hat + Redis pattern for production ready stack that also helps reduce LLM cost and latency.
-
-We will build:
-- a LangGraph agent for processing insurance claims
-- a semantic router to help us quickly classify intent without the latency and cost of an LLM
-- a semantic cache to store answers at the top of our paretto chart
-- a queue for distributing incoming agent requests across workers
+Let's imagine we are tasked to build an insurance claims assistant. The business metrics show that a high volume of questions are similar in nature and could be responded to quickly by an AI Agent. However given the rising cost from model providers, ops wants to make sure that token spend is being managed efficiently. Meanwhile the engineering team is very excited to build out an agent workflow with LangGraph with all the bells and whistles.
 
 From our interaction data, we know that not all input queries require the latest reasoning model to answer and that there are likely many FAQ type questions for which we don't need to constantly regenerate answers.
 
-- stable FAQ and policy-guidance questions go to a cache-first path
-- temporal or claim-specific questions bypass semantic cache
-- cache misses can fall back to a live model endpoint when configured
+From our interaction data, we know that not all input queries require the latest reasoning model to answer and that there are likely many FAQ type questions for which we don't need to constantly regenerate answers.
 
-This makes the repo a concrete demonstration of where semantic caching works well and where it should not be used.
+```mermaid
+flowchart TB
+    subgraph simple_model[simple LLM]
+      simple_deployment[model]
+    end
+    subgraph agent_deploy[agent]
+      agent_cache[cache]
+      agent[agent]
+    end
 
-## Detailed description
+    user -->router{router}
+    router -->|blocked| exit
+    router -->|simple| simple_model[Simple model deployment]
+    router -->|complex| agent_deploy[Agent]
+```
 
-Insurance claims support is full of semantically similar questions whose answers do not change very often. Different users ask the same thing in different ways:
+The router in this diagram refers to the `SemanticRouter` made available from the [redis vector library](https://redis.io/docs/latest/integrate/redisvl/) which uses a combination of vector enabled search techniques to perform classification on the input query. Invoking a semantic router in this way, runs in milliseconds and requires no LLM tokens for quick first cut intent detection. In this example, our three hypothetical routes will be `blocked`, `simple`, and `complex` wherein simple or vague requests (like "hello" or "I need help") go to a cheaper non-reasoning LLM and more complex queries (like "I was curious if policy xyz applies in my state") go to the full featured agent and off topic request (like "answer my python coding question") get evicted.
 
-- "What documents do I need to file an auto claim?"
-- "What paperwork should I have ready for my car insurance claim?"
-- "Do I need photos and a police report before I submit my claim?"
+In a similar vein we will make use of the `SemanticCache` from the redis vector library to store previously generated and approved responses from the agent to reduce on repeat generations.
 
-These are strong candidates for Redis semantic caching because the phrasing changes more than the answer. By contrast, questions such as "What is the status of my claim today?" or "Who is my adjuster right now?" should not be answered from a semantic cache because the answer can change over time.
+The final flow is encapsulated in the following sequence diagram:
 
-This starter app makes that distinction explicit so teams can demonstrate measurable cache-hit savings without over-claiming correctness for transactional workflows.
+```mermaid
+sequenceDiagram
+  participant user
+  participant service as service layer
+  participant embedding as embedding model
+  participant redis
+  participant simple as simple model
+  participant complex as agent
 
-## Run locally
+  user ->> service: input query
+  service ->> embedding: embed user input
+  embedding -->> service:
+  service ->> redis: get route match
+  alt route_match==blocked
+    service->>service: off topic request exit
+  else route_match==simple
+    service-->>simple: route to cheaper model for basic
+  else route_match==complex
+    service->>redis: check cache (for expensive operation)
+    service->>complex: send to agent
+    complex-->>service:
+  end
+
+  service ->> user: return answer
+  user ->> service: thumbs up / thumbs down
+  alt user_feedback==thumbs up
+    service ->> redis: save to cache with ttl
+  else
+    service ->> service: end
+  end
+```
+
+In `demo/notebooks/`, `01_agent.ipynb` and `02_router_cache.ipynb` cover setting up this flow.
+
+## Production view
+
+Finally, we want to provide insight into what managing a deployment like this on OpenShift would look like from a production standpoint where a system like this will have to be able to handle many concurrent requests. Notebook `03_async_work_queue.ipynb` shows how you can easily distribute your work between many horizontally scalable workers. In practice this would enable an architecture like the following in a production environment:
+
+![alt text](image.png)
+
+## Running the demo
 
 The `demo/` folder contains everything needed to exercise the router + cache + agent pattern against a local Redis instance and OpenAI.
 
