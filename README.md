@@ -64,22 +64,41 @@ sequenceDiagram
   end
 ```
 
-In `demo/notebooks/`, `01_agent.ipynb` and `02_router_cache.ipynb` cover setting up this flow.
+In `demo/notebooks/`, `01_agent.ipynb` and `02_router_cache.ipynb` cover setting up this flow. The reusable agent build used by notebook 02 lives in `demo/shared/insurance_bot.py`.
 
 ## Production view
 
-Finally, we want to provide insight into what managing a deployment like this on OpenShift would look like from a production standpoint where a system like this will have to be able to handle many concurrent requests. Notebook `03_async_work_queue.ipynb` shows how you can easily distribute your work between many horizontally scalable workers. In practice this would enable an architecture like the following in a production environment:
+Finally, we want to provide insight into what managing a deployment like this on OpenShift would look like from a production standpoint where a system like this will have to be able to handle many concurrent requests. Notebook `03_async_work_queue.ipynb` shows how you can easily distribute your work between many horizontally scalable workers. In practice this would enable an architecture with multiple workers backed by a shared Redis queue in production.
 
-![alt text](image.png)
+## Deploy on OpenShift (Helm)
 
-## Running the demo
+This repository includes a **Helm chart** under **`deploy/helm`** (chart name **`redis-notebook`**) that can install:
 
-The `demo/` folder contains everything needed to exercise the router + cache + agent pattern against a local Redis instance and OpenAI.
+- an **OpenShift AI** Kubeflow **`Notebook`** workbench with a persistent workspace,
+- a **post-install Job** that clones this repo and copies **`demo/`** into the workspace,
+- **Redis Stack** in-cluster by default (suitable for **redisvl** / `02_router_cache.ipynb`), with optional **OT-CONTAINER-KIT** operator + Redis CR or an **external** `REDIS_URL` instead.
+
+**Before `make deploy`:** create **`deploy/helm/values-secret.yaml`** (gitignored) from **`deploy/helm/values-secret.example.yaml`** and set real values for `secrets.model.apiKey` and the other `secrets.model.*` keys. **`make deploy`** runs **`check-secrets`** (file exists) and **`validate-secrets`** (merged values must not be null/empty for required fields; requires **PyYAML**: `python3 -m pip install pyyaml`).
+
+```bash
+cp deploy/helm/values-secret.example.yaml deploy/helm/values-secret.yaml
+# Edit deploy/helm/values-secret.yaml
+
+make -f deploy/helm/Makefile help
+make -f deploy/helm/Makefile deploy
+```
+
+Operator vs builtin Redis, plain **`helm upgrade`** examples, RBAC, and troubleshooting: see **`deploy/README.md`**.
+
+## Run locally
+
+The `demo/` folder contains everything needed to exercise the router + cache + agent pattern against a local Redis instance and an OpenAI-compatible API.
 
 **Prereqs**
-- Python 3.11
-- A Redis instance reachable at `redis://localhost:6379` (Redis Stack or OSS Redis 7.2+ with the search module)
-- An OpenAI API key
+
+- Python 3.11+ (3.12 is fine)
+- **Redis** reachable at `REDIS_URL` (default `redis://localhost:6379`). Use **Redis Stack** if you run **`02_router_cache.ipynb`** (semantic router / cache need search modules). **`01_agent.ipynb`** LangGraph multi-turn memory needs **`langgraph-checkpoint-redis`** (see `demo/scripts/requirements.txt`).
+- An API key for your LLM provider (OpenAI by default; override **`MODEL_ENDPOINT`** for OpenShift AI / vLLM / Azure OpenAI–compatible hosts)
 
 **1. Install dependencies**
 
@@ -91,23 +110,27 @@ pip install -r demo/scripts/requirements.txt
 
 **2. Configure the environment**
 
-Create a `.env` file at the root of `Reducing-costs-of-AI-with-Redis-Labs/`:
+Create a `.env` file at the repository root:
 
 ```dotenv
 MODEL_API_KEY=sk-...
+MODEL_ENDPOINT=https://api.openai.com
 SIMPLE_MODEL_NAME=gpt-4.1
 COMPLEX_MODEL_NAME=gpt-5
 REDIS_URL=redis://localhost:6379
 ```
 
-**3. Run the notebooks in order**
+**3. Run the notebooks**
 
 ```bash
 jupyter lab demo/notebooks
 ```
 
+Run from the **`demo/notebooks`** directory (or ensure that is the notebook working directory) so paths to `data/` and repo-root `.env` resolve as in the notebooks.
+
 | Notebook | What it shows |
 |---|---|
-| `01_agent.ipynb` | The complex-path LangGraph agent with FAQ search, policy lookup, and Redis-backed multi-turn memory. |
-| `02_router_cache.ipynb` | Wraps the agent with a `SemanticRouter` (blocked / simple / complex) and a `SemanticCache` populated only from 👍 user feedback. |
-| `03_async_work_queue.ipynb` | Shows how to use the [redis-agent-kit](https://pypi.org/project/redis-agent-kit/) to easily setup an async work queue for your agent |
+| `00_initialization.ipynb` | Optional smoke test: env vars, Redis `PING`, and model endpoint checks. |
+| `01_agent.ipynb` | Step-by-step LangGraph ReAct agent (FAQ, policy tools, Redis-backed checkpointer). |
+| `02_router_cache.ipynb` | Imports `demo/shared/insurance_bot.py`: semantic router, thumbs-up–only semantic cache, agent with Redis memory. |
+| `03_async_work_queue.ipynb` | Uses [redis-agent-kit](https://pypi.org/project/redis-agent-kit/) for an async Redis-backed work queue across workers. |

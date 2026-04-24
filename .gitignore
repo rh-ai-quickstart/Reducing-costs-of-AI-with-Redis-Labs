@@ -2,3 +2,5 @@ kube-config.yaml
 .env
 redisvl_examples
 .venv
+
+values-secret.yaml
