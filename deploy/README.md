@@ -16,6 +16,7 @@ The same chart installs **Redis** for the notebooks using one of three modes (se
 - **`oc`** and **`helm`** configured for the cluster.
 - A **workbench image** available in the cluster (default in `values.yaml` pulls from the internal OpenShift registry path `redhat-ods-applications/tensorflow`, which is typical on RHOAI).
 <<<<<<< HEAD
+<<<<<<< HEAD
 - **Helm 3** with access to `https://ot-container-kit.github.io/helm-charts/` **only if** you enable **`redis.useOtContainerKitOperator`** (then run `make -f deploy/helm/Makefile deps`). Builtin Redis does not require that registry.
 - **Cluster administrator** privileges the first time you install the bundled **redis-operator** subchart (cluster-scoped RBAC). If an OT redis-operator is already installed, keep **`redis.useOtContainerKitOperator: false`** (builtin Redis) or set it **`true`** and coordinate with your admin so you do not duplicate the operator.
 - **`deploy/helm/values-secret.yaml`** — not committed (see `deploy/helm/.gitignore`). **`make deploy`** refuses to run until this file exists; copy from **`values-secret.example.yaml`** and set at least **`secrets.model.apiKey`**.
@@ -24,11 +25,16 @@ The same chart installs **Redis** for the notebooks using one of three modes (se
 - **Helm 3** with access to `https://ot-container-kit.github.io/helm-charts/` (for `helm dependency update`), unless you vendor the `charts/*.tgz` bundles already in the repo.
 - **Cluster administrator** privileges the first time you install the bundled **redis-operator** subchart (it creates cluster-scoped RBAC). If an OT redis-operator is already installed, set **`redis.operator.enabled`** to **`false`** so this release only creates the Redis instance and the notebook.
 >>>>>>> 522620f (redis operator)
+=======
+- **Helm 3** with access to `https://ot-container-kit.github.io/helm-charts/` **only if** you enable **`redis.useOtContainerKitOperator`** (then run `make -f deploy/helm/Makefile deps`). Builtin Redis does not require that registry.
+- **Cluster administrator** privileges the first time you install the bundled **redis-operator** subchart (cluster-scoped RBAC). If an OT redis-operator is already installed, keep **`redis.useOtContainerKitOperator: false`** (builtin Redis) or set it **`true`** and coordinate with your admin so you do not duplicate the operator.
+>>>>>>> 3ff4549 (redis operator)
 
 ## Layout
 
 | Path | Purpose |
 |------|---------|
+<<<<<<< HEAD
 <<<<<<< HEAD
 | `helm/Chart.yaml` | Chart metadata (`redis-notebook`) and optional **Helm dependencies** (`redis-operator`, `redis` as `redisData`) when `redis.useOtContainerKitOperator` is true. |
 | `helm/Chart.lock` / `helm/charts/*.tgz` | Locked dependency versions (run `make -f deploy/helm/Makefile deps` after changing `Chart.yaml` or enabling the operator path). |
@@ -42,6 +48,12 @@ The same chart installs **Redis** for the notebooks using one of three modes (se
 | `helm/Chart.lock` / `helm/charts/*.tgz` | Locked dependency versions (run `make -f deploy/helm/Makefile deps` after changing `Chart.yaml`). |
 | `helm/values.yaml` | Notebook, secrets, git clone, and Redis / operator settings. |
 | `helm/templates/` | Kubernetes / OpenShift manifests (Notebook, PVC, RBAC, clone Job). |
+=======
+| `helm/Chart.yaml` | Chart metadata (`redis-notebook`) and optional **Helm dependencies** (`redis-operator`, `redis` as `redisData`) when `redis.useOtContainerKitOperator` is true. |
+| `helm/Chart.lock` / `helm/charts/*.tgz` | Locked dependency versions (run `make -f deploy/helm/Makefile deps` after changing `Chart.yaml` or enabling the operator path). |
+| `helm/values.yaml` | Notebook, secrets, git clone, Redis mode (builtin vs operator vs external). |
+| `helm/templates/` | `_helpers.tpl`, `NOTES.txt`, and subfolders: **`notebook/`** (Workbench, workspace PVC, git-clone Job), **`redis-builtin/`** (Stack Deployment/Service/PVC/ConfigMap), **`rbac/`** (ServiceAccount, RoleBinding). |
+>>>>>>> 3ff4549 (redis operator)
 | `helm/Makefile` | Shortcuts for `deps`, `lint`, `template`, `deploy`, `undeploy`, `logs-clone`. |
 >>>>>>> 522620f (redis operator)
 
@@ -79,9 +91,12 @@ Useful targets:
 **Builtin Redis (default)** — no dependency download required if `charts/*.tgz` are already present; `make deploy` still runs `deps` harmlessly.
 
 ```bash
+<<<<<<< HEAD
 cp ./deploy/helm/values-secret.example.yaml ./deploy/helm/values-secret.yaml
 # Edit values-secret.yaml (at least secrets.model.apiKey)
 
+=======
+>>>>>>> 3ff4549 (redis operator)
 oc new-project redis-notebook           # or choose your own namespace
 helm upgrade --install redis-notebook ./deploy/helm \
   --namespace redis-notebook \
@@ -97,7 +112,10 @@ helm dependency update ./deploy/helm
 helm upgrade --install redis-notebook ./deploy/helm \
   --namespace redis-notebook \
   --values ./deploy/helm/values.yaml \
+<<<<<<< HEAD
   --values ./deploy/helm/values-secret.yaml \
+=======
+>>>>>>> 3ff4549 (redis operator)
   --set redis.useOtContainerKitOperator=true \
   --set redis.builtin.enabled=false \
   --wait --timeout 10m
@@ -145,12 +163,12 @@ The `demo/notebooks` flow (and `demo/shared/insurance_bot.py`) expect:
 | Item | Notes |
 |------|--------|
 | **OpenAI-compatible LLM** | `MODEL_API_KEY` (required), `MODEL_ENDPOINT` (default `https://api.openai.com`), `SIMPLE_MODEL_NAME` / `COMPLEX_MODEL_NAME` with defaults. The chart injects these from `values.yaml` / `values-secrets.yaml`. |
-| **Redis URL** | `REDIS_URL` — wired from in-cluster Redis (above) or `secrets.redis.url` when `redis.enabled` is false. Uses plain **Redis 7** TCP (`redis://…`). |
+| **Redis URL** | `REDIS_URL` — builtin or operator in-cluster URL, or `secrets.redis.url` when external. **Builtin** image is Redis Stack (redisvl-friendly). |
 | **`.env` in repo root** | Notebooks call `load_dotenv(REPO_ROOT / ".env")` with `REPO_ROOT` resolved from `demo/notebooks`; chart env vars still apply for missing keys. |
 | **`TOKENIZERS_PARALLELISM`** | Set to `false` inside `02_router_cache.ipynb` to silence Hugging Face tokenizer fork warnings. |
 | **Python dependencies** | Install packages from `demo/scripts/requirements.txt` in the workbench (or bake them into a custom image) before running cells. |
 
-**Redis Stack / modules:** LangGraph’s `RedisSaver` and basic Redis clients work against the bundled **open source Redis** image. If you later add **vector / RediSearch** features (for example RedisVL semantic indexes), you must run a **Redis Stack**–capable image or **Redis Enterprise** and adjust `redisData.redisStandalone.image` / operator configuration accordingly—the default chart does not enable Redis Stack modules.
+**Plain OSS Redis:** To use `docker.io/library/redis` (e.g. `7.2-alpine`) instead of Stack, set `redis.builtin.image.repository` / `redis.builtin.image.tag` in overrides. Notebook **02** (redisvl) needs **RediSearch** / Stack capabilities.
 
 ## Important configuration (`values.yaml`)
 

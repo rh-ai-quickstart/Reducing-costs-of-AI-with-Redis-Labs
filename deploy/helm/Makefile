@@ -35,10 +35,14 @@ help: ## Show targets and current settings
 
 .PHONY: deps
 <<<<<<< HEAD
+<<<<<<< HEAD
 deps: ## helm dependency update (OT subcharts; only needed when redis.useOtContainerKitOperator is true)
 =======
 deps: ## helm dependency update (packages charts/redis-operator, charts/redis)
 >>>>>>> 522620f (redis operator)
+=======
+deps: ## helm dependency update (OT subcharts; only needed when redis.useOtContainerKitOperator is true)
+>>>>>>> 3ff4549 (redis operator)
 	helm dependency update $(CHART_DIR)
 
 .PHONY: lint
