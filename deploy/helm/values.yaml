@@ -1,0 +1,43 @@
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  openshift: true
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+
+notebook:
+  enabled: true
+  username: "admin"
+
+  image:
+    repository: image-registry.openshift-image-registry.svc:5000/redhat-ods-applications/tensorflow
+    tag: "2025.2"
+    pullPolicy: IfNotPresent
+
+  resources:
+    limits:
+      cpu: "2"
+      memory: "8Gi"
+    requests:
+      cpu: "1"
+      memory: "4Gi"
+
+  storage:
+    size: 20Gi
+    storageClassName: ""
+
+  shm:
+    enabled: true
+    size: 2Gi
+
+  gitSync:
+    enabled: true
+    repo: "https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs.git"
+    branch: "main"
+    image: "alpine/git:latest"

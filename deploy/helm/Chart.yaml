@@ -1,0 +1,14 @@
+apiVersion: v2
+name: redis-cost-reduction
+description: OpenShift AI Notebook with Redis semantic cache and git clone of the Redis Cost Reduction demo
+type: application
+version: 0.1.0
+appVersion: "1.0"
+keywords:
+  - openshift
+  - openshift-ai
+  - jupyter
+  - redis
+home: https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs
+maintainers:
+  - name: Red Hat AI Quickstart Team
