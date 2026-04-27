@@ -76,6 +76,12 @@ secrets:
   model:
     apiKey: ""
     endpoint: "https://api.openai.com"
+    # Optional: per-model URL and key for router/agent notebooks. If unset, Helm uses
+    # endpoint and apiKey above for both (typical single OpenAI-compatible gateway).
+    simpleEndpoint: ""
+    complexEndpoint: ""
+    simpleApiKey: ""
+    complexApiKey: ""
     complexModelName: "gpt-5"
     simpleModelName: "gpt-4.1"
   redis:

@@ -47,13 +47,21 @@ spec:
             - name: CONDARC
               value: /opt/app-root/src/.condarc
             - name: MODEL_API_KEY
-              value: {{ .Values.secrets.model.apiKey }}
+              value: {{ .Values.secrets.model.apiKey | quote }}
             - name: MODEL_ENDPOINT
-              value: {{ .Values.secrets.model.endpoint }}
+              value: {{ .Values.secrets.model.endpoint | quote }}
+            - name: SIMPLE_MODEL_ENDPOINT
+              value: {{ .Values.secrets.model.simpleEndpoint | default .Values.secrets.model.endpoint | quote }}
+            - name: COMPLEX_MODEL_ENDPOINT
+              value: {{ .Values.secrets.model.complexEndpoint | default .Values.secrets.model.endpoint | quote }}
+            - name: SIMPLE_MODEL_KEY
+              value: {{ .Values.secrets.model.simpleApiKey | default .Values.secrets.model.apiKey | quote }}
+            - name: COMPLEX_MODEL_KEY
+              value: {{ .Values.secrets.model.complexApiKey | default .Values.secrets.model.apiKey | quote }}
             - name: COMPLEX_MODEL_NAME
-              value: {{ .Values.secrets.model.complexModelName }}
+              value: {{ .Values.secrets.model.complexModelName | quote }}
             - name: SIMPLE_MODEL_NAME
-              value: {{ .Values.secrets.model.simpleModelName }}
+              value: {{ .Values.secrets.model.simpleModelName | quote }}
             - name: REDIS_URL
               value: {{ include "redis-notebook.redisUrl" . | quote }}
           ports:
