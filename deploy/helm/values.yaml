@@ -111,5 +111,5 @@ notebook:
   gitSync:
     enabled: true
     repo: "https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs.git"
-    branch: "redis/robert/ex"
+    branch: "rj_helm"
     image: "alpine/git:latest"
