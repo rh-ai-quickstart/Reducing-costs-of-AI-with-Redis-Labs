@@ -28,7 +28,7 @@ The same chart installs **Redis** for the notebooks using one of three modes (se
 | `helm/Chart.lock` / `helm/charts/*.tgz` | Locked dependency versions (run `make -f deploy/helm/Makefile deps` after changing `Chart.yaml` or enabling the operator path). |
 | `helm/values.yaml` | Notebook, git clone, Redis mode (builtin vs operator vs external); non-secret defaults. |
 | `helm/values-secret.example.yaml` | Template for **`values-secret.yaml`** (copy locally; gitignored). Holds `secrets.model.*` and optional `secrets.redis.url`. |
-| `helm/templates/` | `_helpers.tpl`, `NOTES.txt`, and subfolders: **`notebook/`** (Workbench, workspace PVC, git-clone Job), **`redis-builtin/`** (Stack Deployment/Service/PVC/ConfigMap), **`rbac/`** (ServiceAccount, RoleBinding). |
+| `helm/templates/` | `_helpers.tpl`, `NOTES.txt`, and subfolders: **`notebook/`** (Workbench, workspace PVC, git-sync initContainer), **`redis-builtin/`** (Stack Deployment/Service/PVC/ConfigMap), **`rbac/`** (ServiceAccount, RoleBinding). |
 | `helm/Makefile` | Shortcuts for `deps`, `lint`, `template`, `check-secrets`, `validate-secrets`, `deploy`, `undeploy`, `logs-clone`. |
 | `helm/scripts/validate_secrets.py` | Merges values like Helm and fails on empty/null **`secrets.model.*`** (and **`secrets.redis.url`** when using external Redis only). |
 
@@ -58,7 +58,7 @@ Useful targets:
 - **`check-secrets`** — fails fast if **`values-secret.yaml`** is missing.
 - **`validate-secrets`** — requires **`check-secrets`**, then ensures merged values have no null/empty required **`secrets.*`** fields (uses PyYAML).
 - **`deploy`** — runs **`validate-secrets`**, **`deps`**, creates the namespace, then `helm upgrade --install` with **`values.yaml`** and **`values-secret.yaml`**.
-- **`logs-clone`** — logs from the git-clone Job pods.
+- **`logs-clone`** — logs from the notebook `git-sync-demo` init container.
 - **`undeploy`** — `helm uninstall` (namespace is not deleted; the PVC may remain because of `helm.sh/resource-policy: keep` on the PVC).
 
 ## Quick deploy (Helm only)
@@ -105,11 +105,11 @@ Other resources:
 1. **ServiceAccount** and **RoleBinding** to the cluster **`edit`** role so the workbench workload can use the namespace as expected.
 2. **PersistentVolumeClaim** — read-write-once workspace for `/opt/app-root/src` (annotation keeps the PVC across uninstall if you rely on that policy).
 3. **`Notebook`** (`kubeflow.org/v1`) — Jupyter-compatible workbench using the configured image, probes, and optional `/dev/shm` emptyDir.
-4. **Job** (post-install / post-upgrade hook) — waits for the PVC, clones `notebook.gitSync.repo` (optional branch), copies **`demo/`** into the workspace root, then exits. Notebooks appear under **`demo/notebooks`** inside the workspace (i.e. `/opt/app-root/src/demo/notebooks` in the container).
+4. **Git sync** — an **initContainer** on the Workbench pod (same PVC mount as Jupyter; avoids RWO multi-attach) clones `notebook.gitSync.repo` (optional branch) and copies **`demo/`** into the workspace root before the notebook starts. By default it **skips** if `demo/notebooks` already exists; set **`notebook.gitSync.forceRefresh: true`** to delete `demo/` and re-clone on the next pod start. Notebooks appear under **`demo/notebooks`** (i.e. `/opt/app-root/src/demo/notebooks`).
 
 The notebook **`REDIS_URL`** environment variable is set from **`redis-notebook.redisUrl`** in templates: FQDN in-cluster DNS for operator or builtin Redis, or **`secrets.redis.url`** for external-only.
 
-Disable the clone Job by setting `notebook.gitSync.enabled: false` in a custom values file.
+Disable git sync by setting `notebook.gitSync.enabled: false` in a custom values file.
 
 ## Demo notebooks — runtime expectations
 

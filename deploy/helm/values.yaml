@@ -113,3 +113,6 @@ notebook:
     repo: "https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs.git"
     branch: "rj_helm"
     image: "alpine/git:latest"
+    # When true, deletes demo/ on the PVC and re-clones on the next notebook pod start.
+    # Default false: skip sync if demo/notebooks already exists (avoids RWO multi-attach from a separate Job).
+    forceRefresh: true
