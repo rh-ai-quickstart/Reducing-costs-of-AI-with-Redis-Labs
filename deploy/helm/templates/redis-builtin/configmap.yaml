@@ -1,0 +1,12 @@
+{{- if and .Values.redis.builtin.enabled (not .Values.redis.useOtContainerKitOperator) .Values.redis.connectionConfigMap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "redis-notebook.redisConnectionConfigMapName" . }}
+  labels:
+    {{- include "redis-notebook.labels" . | nindent 4 }}
+data:
+  REDIS_URL: {{ include "redis-notebook.redisUrl" . | quote }}
+  REDIS_HOST: {{ include "redis-notebook.redisBuiltinName" . | quote }}
+  REDIS_PORT: {{ .Values.redis.builtin.service.port | toString | quote }}
+{{- end }}

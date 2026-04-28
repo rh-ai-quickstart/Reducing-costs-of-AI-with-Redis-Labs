@@ -1,0 +1,24 @@
+{{- if and .Values.notebook.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "redis-notebook.fullname" . }}-notebook-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "redis-notebook.labels" . | nindent 4 }}
+    app.kubernetes.io/component: notebook
+    opendatahub.io/dashboard: "true"
+  annotations:
+    openshift.io/display-name: "Redis AI cost reduction — notebook workspace"
+    helm.sh/resource-policy: keep
+    helm.sh/hook-weight: "-5"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.notebook.storage.size }}
+  {{- if .Values.notebook.storage.storageClassName }}
+  storageClassName: {{ .Values.notebook.storage.storageClassName }}
+  {{- end }}
+{{- end }}

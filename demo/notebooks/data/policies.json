@@ -1,0 +1,139 @@
+[
+  {
+    "policy_id": "AUTO-1001",
+    "type": "auto",
+    "holder": {
+      "name": "Jordan Reyes",
+      "email": "jordan.reyes@example.com",
+      "state": "CA"
+    },
+    "vehicles": [
+      {
+        "year": 2021,
+        "make": "Toyota",
+        "model": "RAV4",
+        "vin": "JTMRFREV0LD012345"
+      }
+    ],
+    "coverages": {
+      "liability_bodily_injury": "100/300",
+      "liability_property_damage": "100",
+      "collision": true,
+      "comprehensive": true,
+      "rental_reimbursement": true,
+      "roadside_assistance": false
+    },
+    "deductibles": {
+      "collision": 500,
+      "comprehensive": 250,
+      "glass": 0
+    },
+    "effective_date": "2025-02-15",
+    "renewal_date": "2026-02-15",
+    "premium_monthly": 142.50
+  },
+  {
+    "policy_id": "AUTO-1002",
+    "type": "auto",
+    "holder": {
+      "name": "Priya Shah",
+      "email": "priya.shah@example.com",
+      "state": "TX"
+    },
+    "vehicles": [
+      {
+        "year": 2019,
+        "make": "Honda",
+        "model": "Civic",
+        "vin": "2HGFC2F59KH512998"
+      },
+      {
+        "year": 2023,
+        "make": "Ford",
+        "model": "F-150",
+        "vin": "1FTFW1E82PFA23456"
+      }
+    ],
+    "coverages": {
+      "liability_bodily_injury": "250/500",
+      "liability_property_damage": "250",
+      "collision": true,
+      "comprehensive": true,
+      "rental_reimbursement": false,
+      "roadside_assistance": true
+    },
+    "deductibles": {
+      "collision": 1000,
+      "comprehensive": 500,
+      "glass": 100
+    },
+    "effective_date": "2024-09-01",
+    "renewal_date": "2025-09-01",
+    "premium_monthly": 218.00
+  },
+  {
+    "policy_id": "HOME-2001",
+    "type": "homeowners",
+    "holder": {
+      "name": "Alex Morgan",
+      "email": "alex.morgan@example.com",
+      "state": "FL"
+    },
+    "property": {
+      "address": "482 Palm Cove Dr, Sarasota, FL",
+      "year_built": 2008,
+      "square_feet": 2150,
+      "construction": "masonry"
+    },
+    "coverages": {
+      "dwelling": 425000,
+      "other_structures": 42500,
+      "personal_property": 212500,
+      "loss_of_use": 85000,
+      "personal_liability": 300000,
+      "medical_payments": 5000,
+      "wind_hail": true,
+      "flood": false
+    },
+    "deductibles": {
+      "all_perils": 2500,
+      "wind_hail": 5000
+    },
+    "effective_date": "2025-06-01",
+    "renewal_date": "2026-06-01",
+    "premium_monthly": 287.75
+  },
+  {
+    "policy_id": "AUTO-1003",
+    "type": "auto",
+    "holder": {
+      "name": "Sam Okafor",
+      "email": "sam.okafor@example.com",
+      "state": "NY"
+    },
+    "vehicles": [
+      {
+        "year": 2022,
+        "make": "Tesla",
+        "model": "Model 3",
+        "vin": "5YJ3E1EA8NF123789"
+      }
+    ],
+    "coverages": {
+      "liability_bodily_injury": "100/300",
+      "liability_property_damage": "100",
+      "collision": true,
+      "comprehensive": true,
+      "rental_reimbursement": true,
+      "roadside_assistance": true
+    },
+    "deductibles": {
+      "collision": 750,
+      "comprehensive": 250,
+      "glass": 0
+    },
+    "effective_date": "2025-01-10",
+    "renewal_date": "2026-01-10",
+    "premium_monthly": 176.40
+  }
+]

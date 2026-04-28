@@ -1,300 +1,136 @@
-# [INSERT quickstart title here]
+# Create a scalable and cost efficient insurance agent with OpenShift AI and Redis
 
-<!-- CONTRIBUTOR TODO: update title ^^
-
-*replace the H1 title above with your quickstart title*
-
-TITLE requirements:
-	* MAX CHAR: 64
-	* Industry use case, ie: Protect patient data with LLM guardrails
-
-TITLE will be extracted for publication.
-
--- >
-
-
-
-<!-- CONTRIBUTOR TODO: short description
-
-*ADD a SHORT DESCRIPTION of your use case between H1 title and next section*
-
-SHORT DESCRIPTION requirements:
-	* MAX CHAR: 160
-	* Describe the INDUSTRY use case
-
-SHORT DESCRIPTION will be extracted for publication.
-
--->
+When starting out with AI systems, it's easy to lose track of the use case and miss out on pragmatic opportunities for optimization. Moreover, sound software architecture decisions still go a long way in making sure that what you're building doesn't get trapped in demo purgatory. This quickstart guide aims to focus on the all the connective tissue it takes to build an effective AI app that you can feel confident running on OpenShift AI secure platform with the performance and reliability of Redis enterprise.
 
 ## Overview
 
-<!-- CONTRIBUTOR TODO: add overview
+Let's imagine we are tasked to build an insurance claims assistant. The business metrics show that a high volume of questions are similar in nature and could be responded to quickly by an AI Agent. However given the rising cost from model providers, ops wants to make sure that token spend is being managed efficiently. Meanwhile the engineering team is very excited to build out an agent workflow with LangGraph with all the bells and whistles.
 
-*Describe the quickstart at a high level. What does it do? What problem does it solve?*
+From our interaction data, we know that not all input queries require the latest reasoning model to answer and that there are likely many FAQ type questions for which we don't need to constantly regenerate answers.
 
--->
+To address these collective needs, we propose the following architecture:
 
-## Detailed description
+```mermaid
+flowchart TB
+    subgraph simple_model[simple LLM]
+      simple_deployment[model]
+    end
+    subgraph agent_deploy[agent]
+      agent_cache[cache]
+      agent[agent]
+    end
 
-<!-- CONTRIBUTOR TODO: add detailed description.
-
-This section is required. Describe the quickstart use case in more detail.
-
-This is not a technical description. This is about the workload.
-
-Technical description comes later.
-
--->
-
-
-### See it in action
-
-<!--
-
-*This section is optional but recommended*
-
-Arcades are a great way to showcase your quickstart before installation.
-
--->
-
-### Architecture diagrams
-
-<!-- CONTRIBUTOR TODO: add architecture diagram.
-
-*Section is required. Put images in `docs/images` folder*
-
--->
-
-
-## Requirements
-
-
-### Minimum hardware requirements
-
-<!-- CONTRIBUTOR TODO: add minimum hardware requirements
-
-*Section is required.*
-
-Be as specific as possible. DON'T say "GPU". Be specific.
-
-List minimum hardware requirements.
-
-If your quickstart deploys a model, include its resource requirements. For example:
-
-**Main LLM (only when deploying a model with the chart):**
-- CPU: X vCPU (request) / Y vCPU (limit)
-- Memory: X GiB (request) / Y GiB (limit)
-- GPU: 1 NVIDIA GPU (e.g., A10, A100, L40S, T4, or similar)
-
-> **Note**: If users bring their own model endpoint (MaaS), the LLM resources
-and GPU are not required.
-
-If your quickstart does NOT deploy a model, just list the resources your
-application needs.
-
--->
-
-### Minimum software requirements
-
-<!-- CONTRIBUTOR TODO: add minimum software requirements
-
-*Section is required.*
-
-Be specific. Don't say "OpenShift AI". Instead, tested with OpenShift AI 2.25
-
-If you know it only works in a specific version, say so.
-
--->
-
-### Required user permissions
-
-<!-- CONTRIBUTOR TODO: add user permissions
-
-*Section is required. Describe the permissions the user will need. Cluster
-admin? Regular user?*
-
--->
-
-
-## Deploy
-
-### Prerequisites
-
-Before deploying, ensure you have:
-- Access to a Red Hat OpenShift cluster with OpenShift AI installed
-- `oc` CLI tool installed and configured
-- `helm` CLI tool installed
-- Sufficient resources available in your cluster
-
-<!-- CONTRIBUTOR TODO: add or remove prerequisites as needed -->
-
-### Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/rh-ai-quickstart/YOUR_QUICKSTART_NAME.git
-cd YOUR_QUICKSTART_NAME
+    user -->router{router}
+    router -->|blocked| exit
+    router -->|simple| simple_model[Simple model deployment]
+    router -->|complex| agent_deploy[Agent]
 ```
 
-2. Create a new OpenShift project:
-```bash
-PROJECT="my-quickstart"
-oc new-project ${PROJECT}
+The router in this diagram refers to the `SemanticRouter` made available from the [redis vector library](https://redis.io/docs/latest/integrate/redisvl/) which uses a combination of vector enabled search techniques to perform classification on the input query. Invoking a semantic router in this way, runs in milliseconds and requires no LLM tokens for quick first cut intent detection. In this example, our three hypothetical routes will be `blocked`, `simple`, and `complex` wherein simple or vague requests (like "hello" or "I need help") go to a cheaper non-reasoning LLM and more complex queries (like "I was curious if policy xyz applies in my state") go to the full featured agent and off topic request (like "answer my python coding question") get evicted.
+
+In a similar vein we will make use of the `SemanticCache` from the redis vector library to store previously generated and approved responses from the agent to reduce on repeat generations.
+
+The final flow is encapsulated in the following sequence diagram:
+
+```mermaid
+sequenceDiagram
+  participant user
+  participant service as service layer
+  participant embedding as embedding model
+  participant redis
+  participant simple as simple model
+  participant complex as agent
+
+  user ->> service: input query
+  service ->> embedding: embed user input
+  embedding -->> service:
+  service ->> redis: get route match
+  alt route_match==blocked
+    service->>service: off topic request exit
+  else route_match==simple
+    service-->>simple: route to cheaper model for basic
+  else route_match==complex
+    service->>redis: check cache (for expensive operation)
+    service->>complex: send to agent
+    complex-->>service:
+  end
+
+  service ->> user: return answer
+  user ->> service: thumbs up / thumbs down
+  alt user_feedback==thumbs up
+    service ->> redis: save to cache with ttl
+  else
+    service ->> service: end
+  end
 ```
 
-3. Install using Helm:
+In `demo/notebooks/`, `01_agent.ipynb` and `02_router_cache.ipynb` cover setting up this flow. The reusable agent build used by notebook 02 lives in `demo/shared/insurance_bot.py`.
+
+## Production view
+
+Finally, we want to provide insight into what managing a deployment like this on OpenShift would look like from a production standpoint where a system like this will have to be able to handle many concurrent requests. Notebook `03_async_work_queue.ipynb` shows how you can easily distribute your work between many horizontally scalable workers. In practice this would enable an architecture with multiple workers backed by a shared Redis queue in production.
+
+## Deploy on OpenShift (Helm)
+
+This repository includes a **Helm chart** under **`deploy/helm`** (chart name **`redis-notebook`**) that can install:
+
+- an **OpenShift AI** Kubeflow **`Notebook`** workbench with a persistent workspace,
+- a **post-install Job** that clones this repo and copies **`demo/`** into the workspace,
+- **Redis Stack** in-cluster by default (suitable for **redisvl** / `02_router_cache.ipynb`), with optional **OT-CONTAINER-KIT** operator + Redis CR or an **external** `REDIS_URL` instead.
+
+**Before `make deploy`:** create **`deploy/helm/values-secret.yaml`** (gitignored) from **`deploy/helm/values-secret.example.yaml`** and set real values for `secrets.model.apiKey` and the other `secrets.model.*` keys. **`make deploy`** runs **`check-secrets`** (file exists) and **`validate-secrets`** (merged values must not be null/empty for required fields; requires **PyYAML**: `python3 -m pip install pyyaml`).
 
 ```bash
-helm install my-quickstart ./chart --namespace ${PROJECT}
+cp deploy/helm/values-secret.example.yaml deploy/helm/values-secret.yaml
+# Edit deploy/helm/values-secret.yaml
+
+make -f deploy/helm/Makefile help
+make -f deploy/helm/Makefile deploy
 ```
 
-<!-- CONTRIBUTOR TODO:
+Operator vs builtin Redis, plain **`helm upgrade`** examples, RBAC, and troubleshooting: see **`deploy/README.md`**.
 
-Customize the installation step above to match your quickstart.
+## Run locally
 
-Key things to update:
-- Replace "my-quickstart" and "YOUR_QUICKSTART_NAME" with your actual names
-- Add any additional --set flags specific to your quickstart
-- If your quickstart requires a model, keep the model options section below
-  and remove this comment
-- If your quickstart does NOT require a model, remove the model options section
-  below entirely
+The `demo/` folder contains everything needed to exercise the router + cache + agent pattern against a local Redis instance and an OpenAI-compatible API.
 
--->
+**Prereqs**
 
-#### If your quickstart requires a model
+- Python 3.11+ (3.12 is fine)
+- **Redis** reachable at `REDIS_URL` (default `redis://localhost:6379`). Use **Redis Stack** if you run **`02_router_cache.ipynb`** (semantic router / cache need search modules). **`01_agent.ipynb`** LangGraph multi-turn memory needs **`langgraph-checkpoint-redis`** (see `demo/scripts/requirements.txt`).
+- An API key for your LLM provider (OpenAI by default; override **`MODEL_ENDPOINT`** for OpenShift AI / vLLM / Azure OpenAI–compatible hosts)
 
-**Option A: Use your own model (MaaS - Model as a Service)**
-
-If you have an existing model endpoint, provide the model name, endpoint, and API key:
-```bash
-helm install my-quickstart ./chart --namespace ${PROJECT} \
-  --set model.name=YOUR_MODEL_NAME \
-  --set model.endpoint=YOUR_MODEL_ENDPOINT \
-  --set model.api_key=YOUR_API_KEY
-```
-
-> **Note**: The `model.endpoint` should be the full URL including protocol and port if needed (e.g., `https://my-model.example.com` or `http://my-model:8080`).
-
-**Option B: Deploy with a model included in the chart**
-
-If you don't provide any model configuration, the chart will deploy a default model on your cluster:
-```bash
-helm install my-quickstart ./chart --namespace ${PROJECT}
-```
-
-> **Note**: Option B requires a GPU available in your cluster for the LLM deployment. See [Minimum hardware requirements](#minimum-hardware-requirements) for details. You must add your own model InferenceService template under `chart/templates/` for this option to work.
-
-#### Testing model access (before deploying)
-
-If you are bringing your own model (Option A), you can verify the endpoint is reachable **before** installing the chart:
+**1. Install dependencies**
 
 ```bash
-oc run test-model-access --rm -it --restart=Never \
-  --image=registry.access.redhat.com/ubi9/ubi-minimal:latest \
-  -- /bin/sh -c 'curl -sf --max-time 10 \
-    -H "Authorization: Bearer YOUR_API_KEY" \
-    -H "Content-Type: application/json" \
-    -d "{\"model\": \"YOUR_MODEL_NAME\", \"messages\": [{\"role\": \"user\", \"content\": \"Say hello in one word.\"}], \"max_tokens\": 10}" \
-    "YOUR_MODEL_ENDPOINT/v1/chat/completions" && echo "" && echo "SUCCESS" || echo "FAILED"'
+cd Reducing-costs-of-AI-with-Redis-Labs
+python -m venv .venv && source .venv/bin/activate
+pip install -r demo/scripts/requirements.txt
 ```
 
-Replace `YOUR_API_KEY`, `YOUR_MODEL_NAME`, and `YOUR_MODEL_ENDPOINT` with your actual values.
+**2. Configure the environment**
 
-### Validating the deployment
+Create a `.env` file at the repository root:
 
-After installing the chart, you can run the included Helm test to verify model connectivity:
+```dotenv
+MODEL_API_KEY=sk-...
+MODEL_ENDPOINT=https://api.openai.com
+SIMPLE_MODEL_NAME=gpt-4.1
+COMPLEX_MODEL_NAME=gpt-5
+REDIS_URL=redis://localhost:6379
+```
+
+**3. Run the notebooks**
 
 ```bash
-helm test my-quickstart --namespace ${PROJECT}
+jupyter lab demo/notebooks
 ```
 
-<!-- CONTRIBUTOR TODO: add additional validation steps specific to your quickstart,
-such as checking routes, accessing a UI, etc. For example:
+Run from the **`demo/notebooks`** directory (or ensure that is the notebook working directory) so paths to `data/` and repo-root `.env` resolve as in the notebooks.
 
-```bash
-echo https://$(oc get route/my-app -n ${PROJECT} --template='{{.spec.host}}')
-```
-
-If your quickstart does not use a model, remove the helm test step above
-and add your own validation steps.
--->
-
-### Uninstall
-
-To remove the deployment:
-```bash
-helm uninstall my-quickstart --namespace ${PROJECT}
-```
-
-## Repository structure
-
-```
-.
-├── chart/                    # Helm chart for deploying the quickstart
-│   ├── Chart.yaml            # Chart metadata
-│   ├── values.yaml           # Default configuration values (model info, resources, etc.)
-│   └── templates/            # Kubernetes resource templates
-│       ├── test-model-access.yaml  # Helm test for verifying model connectivity
-│       └── ...               # Add your templates here (deployments, services, etc.)
-├── docs/
-│   └── images/               # Architecture diagrams and screenshots
-└── README.md
-```
-
-<!-- CONTRIBUTOR TODO:
-
-Update the tree above to reflect your actual structure.
-
-The `chart/` folder is where your Helm chart lives. At minimum it should contain:
-- Chart.yaml with your chart metadata
-- values.yaml with your configurable values (include model configuration only
-  if your quickstart requires a model)
-- templates/ with your Kubernetes resource templates
-
-If your quickstart includes application source code (e.g., a web UI, API server),
-add it as a sibling directory to chart/. For example:
-  ├── my-app/                 # Application source code
-  │   ├── app.py
-  │   ├── Containerfile
-  │   └── requirements.txt
-
--->
-
-## References
-
-<!--
-
-*Section optional.* Remember to remove if do not use.
-
-Include links to supporting information, documentation, or learning materials.
-
--->
-
-## Technical details
-
-<!--
-
-*Section is optional.*
-
-Here is your chance to share technical details.
-
-Welcome to add sections as needed. Keep additions as structured and consistent as possible.
-
--->
-
-## Tags
-
-<!-- CONTRIBUTOR TODO: add metadata and tags for publication
-
-TAG requirements:
-	* Title: max char: 64, describes quickstart (match H1 heading)
-	* Description: max char: 160, match SHORT DESCRIPTION above
-	* Industry: target industry, ie. Healthcare OR Financial Services
-	* Product: list primary product, ie. OpenShift AI OR OpenShift OR RHEL
-	* Use case: use case descriptor, ie. security, automation,
-	* Contributor org: defaults to Red Hat unless partner or community
-
-Additional MIST tags, populated by web team.
-
--->
+| Notebook | What it shows |
+|---|---|
+| `00_initialization.ipynb` | Optional smoke test: env vars, Redis `PING`, and model endpoint checks. |
+| `01_agent.ipynb` | Step-by-step LangGraph ReAct agent (FAQ, policy tools, Redis-backed checkpointer). |
+| `02_router_cache.ipynb` | Imports `demo/shared/insurance_bot.py`: semantic router, thumbs-up–only semantic cache, agent with Redis memory. |
+| `03_async_work_queue.ipynb` | Uses [redis-agent-kit](https://pypi.org/project/redis-agent-kit/) for an async Redis-backed work queue across workers. |

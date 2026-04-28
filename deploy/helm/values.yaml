@@ -1,0 +1,115 @@
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  openshift: true
+  clusterDomain: cluster.local
+
+# Redis for notebooks: pick one primary path.
+#
+# 1) Builtin Redis Stack (default): in-chart Deployment + Service — no cluster-wide
+#    operator, no helm dependency on OT charts. Good for demos and redisvl.
+#    Set redis.useOtContainerKitOperator: false and redis.builtin.enabled: true
+#
+# 2) OT-CONTAINER-KIT operator + Redis CR: set redis.useOtContainerKitOperator: true,
+#    run `make -f deploy/helm/Makefile deps`, see deploy/README.md for admin notes.
+#
+# 3) External only: redis.useOtContainerKitOperator: false, redis.builtin.enabled: false,
+#    set secrets.redis.url to your broker URL.
+redis:
+  useOtContainerKitOperator: false
+
+  builtin:
+    enabled: true
+    image:
+      repository: docker.io/redis/redis-stack-server
+      tag: "7.4.0-v3"
+      pullPolicy: IfNotPresent
+    args: []
+    service:
+      type: ClusterIP
+      port: 6379
+    resources:
+      limits:
+        cpu: "1"
+        memory: 2Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    persistence:
+      enabled: false
+      size: 5Gi
+      accessMode: ReadWriteOnce
+      storageClassName: ""
+    podAnnotations: {}
+    podSecurityContext: {}
+    containerSecurityContext: {}
+
+  connectionConfigMap:
+    enabled: true
+    name: ""
+
+redis-operator:
+  redisOperator:
+    watchNamespace: ""
+
+redisData:
+  redisStandalone:
+    name: ""
+  storageSpec:
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+
+secrets:
+  model:
+    apiKey: ""
+    endpoint: "https://api.openai.com"
+    # Optional: per-model URL and key for router/agent notebooks. If unset, Helm uses
+    # endpoint and apiKey above for both (typical single OpenAI-compatible gateway).
+    simpleEndpoint: ""
+    complexEndpoint: ""
+    simpleApiKey: ""
+    complexApiKey: ""
+    complexModelName: "gpt-5"
+    simpleModelName: "gpt-4.1"
+  redis:
+    url: "redis://localhost:6379"
+
+notebook:
+  enabled: true
+  username: "admin"
+
+  image:
+    repository: image-registry.openshift-image-registry.svc:5000/redhat-ods-applications/tensorflow
+    tag: "2025.2"
+    pullPolicy: IfNotPresent
+
+  resources:
+    limits:
+      cpu: "2"
+      memory: "8Gi"
+    requests:
+      cpu: "1"
+      memory: "4Gi"
+
+  storage:
+    size: 20Gi
+    storageClassName: ""
+
+  gitSync:
+    enabled: true
+    repo: "https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs.git"
+    branch: "rj_helm"
+    image: "alpine/git:latest"

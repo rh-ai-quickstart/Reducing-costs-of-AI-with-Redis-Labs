@@ -1,0 +1,7 @@
+Starting worker (concurrency=2, queue=insurance)
+Connecting to Redis: redis://localhost:6379
+Loaded 1 tasks from insurance_worker:tasks
+Worker started. Press Ctrl+C to stop.
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 5720.34it/s]
+Loading weights:   0%|          | 0/134 [00:00<?, ?it/s]Loading weights: 100%|██████████| 134/134 [00:00<00:00, 4923.06it/s]
