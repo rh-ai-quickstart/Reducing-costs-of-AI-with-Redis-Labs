@@ -51,13 +51,13 @@ spec:
             - name: MODEL_ENDPOINT
               value: {{ .Values.secrets.model.endpoint | quote }}
             - name: SIMPLE_MODEL_ENDPOINT
-              value: {{ .Values.secrets.model.simpleEndpoint | default .Values.secrets.model.endpoint | quote }}
+              value: {{ .Values.secrets.model.simpleEndpoint | default .Values.secrets.model.endpoint | default .Values.secrets.model.complexEndpoint | quote }}
             - name: COMPLEX_MODEL_ENDPOINT
-              value: {{ .Values.secrets.model.complexEndpoint | default .Values.secrets.model.endpoint | quote }}
+              value: {{ .Values.secrets.model.complexEndpoint | default .Values.secrets.model.endpoint | default .Values.secrets.model.simpleEndpoint | quote }}
             - name: SIMPLE_MODEL_KEY
-              value: {{ .Values.secrets.model.simpleApiKey | default .Values.secrets.model.apiKey | quote }}
+              value: {{ .Values.secrets.model.simpleApiKey | quote }}
             - name: COMPLEX_MODEL_KEY
-              value: {{ .Values.secrets.model.complexApiKey | default .Values.secrets.model.apiKey | quote }}
+              value: {{ .Values.secrets.model.complexApiKey | quote }}
             - name: COMPLEX_MODEL_NAME
               value: {{ .Values.secrets.model.complexModelName | quote }}
             - name: SIMPLE_MODEL_NAME
