@@ -65,20 +65,12 @@ def main() -> None:
 
     errors: list[str] = []
 
-    if not _nonempty_str(
-        model.get("simpleApiKey") or not _nonempty_str(model.get("complexApiKey"))
-    ):
+    if not _nonempty_str(model.get("apiKey")):
         errors.append(
-            "secrets.model.simpleApiKey and secrets.model.complexApiKey must be a non-empty string (your LLM API key)."
+            "secrets.model.apiKey must be a non-empty string (your LLM API key)."
         )
 
-    for key in (
-        "endpoint",
-        "complexModelName",
-        "simpleModelName",
-        "simpleEndpoint",
-        "complexEndpoint",
-    ):
+    for key in ("endpoint", "complexModelName", "simpleModelName"):
         if not _nonempty_str(model.get(key)):
             errors.append(
                 f"secrets.model.{key} must be set and non-empty "

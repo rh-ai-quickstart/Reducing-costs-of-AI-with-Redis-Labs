@@ -1,14 +1,15 @@
 {{- if and .Values.notebook.enabled (eq .Values.notebook.kind "Notebook") }}
 {{- if not (.Capabilities.APIVersions.Has "kubeflow.org/v1/Notebook") }}
-{{- fail "notebook.kind=\"Notebook\" requires the kubeflow.org/v1 Notebook CRD (Red Hat OpenShift AI / Open Data Hub). Either install RHOAI on this cluster, or set notebook.kind=\"Deployment\" in values.yaml." }}
+{{- fail "notebook.kind=\"Notebook\" requires the kubeflow.org/v1 Notebook CRD provided by Red Hat OpenShift AI (RHOAI) or upstream Open Data Hub. Install RHOAI / ODH notebook-controller into the cluster, or set notebook.kind=\"Deployment\" to use a plain Deployment + Route instead." }}
 {{- end }}
 apiVersion: kubeflow.org/v1
 kind: Notebook
 metadata:
-  name: {{ include "redis-notebook.notebookName" . }}
+  name: {{ include "redis-notebook.fullname" . }}-notebook
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "redis-notebook.notebookLabels" . | nindent 4 }}
+    {{- include "redis-notebook.labels" . | nindent 4 }}
+    app.kubernetes.io/component: notebook
     opendatahub.io/dashboard: "true"
     opendatahub.io/odh-managed: "true"
   annotations:
@@ -26,7 +27,7 @@ spec:
           imagePullPolicy: IfNotPresent
           env:
             - name: GIT_SYNC_FORCE
-              value: {{ ternary "true" "false" .Values.notebook.gitSync.forceRefresh | quote }}
+              value: {{ if .Values.notebook.gitSync.forceRefresh }}"true"{{ else }}"false"{{ end }}
           command:
             - sh
             - -c
@@ -109,14 +110,15 @@ spec:
             - name: COMPLEX_MODEL_ENDPOINT
               value: {{ .Values.secrets.model.complexEndpoint | default .Values.secrets.model.endpoint | default .Values.secrets.model.simpleEndpoint | quote }}
             - name: SIMPLE_MODEL_KEY
-              value: {{ .Values.secrets.model.simpleApiKey | quote }}
+              value: {{ .Values.secrets.model.simpleApiKey | default .Values.secrets.model.apiKey | quote }}
             - name: COMPLEX_MODEL_KEY
-              value: {{ .Values.secrets.model.complexApiKey | quote }}
+              value: {{ .Values.secrets.model.complexApiKey | default .Values.secrets.model.apiKey | quote }}
             - name: COMPLEX_MODEL_NAME
               value: {{ .Values.secrets.model.complexModelName | quote }}
             - name: SIMPLE_MODEL_NAME
               value: {{ .Values.secrets.model.simpleModelName | quote }}
-            {{- include "redis-notebook.redisEnv" . | nindent 12 }}
+            - name: REDIS_URL
+              value: {{ include "redis-notebook.redisUrl" . | quote }}
           ports:
             - containerPort: 8888
               name: notebook-port

@@ -27,6 +27,13 @@ redis:
   useOtContainerKitOperator: false
   useRedisEnterpriseOperator: true
 
+  # Skip the friendly preflight that fails fast when the redis-enterprise CRDs
+  # (app.redislabs.com/v1, .../v1alpha1) are not present in the cluster's API
+  # server. Leave false for real installs/upgrades. Set true for `helm lint`
+  # or `helm template` runs that don't pass --api-versions, to suppress the
+  # preflight noise without losing the safety check at deploy time.
+  skipCapabilityCheck: false
+
   builtin:
     enabled: false
     image:
@@ -181,8 +188,5 @@ notebook:
   gitSync:
     enabled: true
     repo: "https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs.git"
-    branch: "rj_helm"
+    branch: "main"
     image: "alpine/git:latest"
-    # When true, deletes demo/ on the PVC and re-clones on the next notebook pod start.
-    # Default false: skip sync if demo/notebooks already exists (avoids RWO multi-attach from a separate Job).
-    forceRefresh: true

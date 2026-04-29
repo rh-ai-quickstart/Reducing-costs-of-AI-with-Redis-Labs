@@ -1,5 +1,5 @@
 {{- if .Values.redis.useRedisEnterpriseOperator }}
-{{- if not (.Capabilities.APIVersions.Has "app.redislabs.com/v1alpha1") }}
+{{- if and (not .Values.redis.skipCapabilityCheck) (not (.Capabilities.APIVersions.Has "app.redislabs.com/v1alpha1")) }}
 {{- fail "redis.useRedisEnterpriseOperator=true requires the app.redislabs.com/v1alpha1 RedisEnterpriseDatabase CRD. Install the redis-enterprise-operator-cert package from OperatorHub into this release's namespace, then re-run helm install/upgrade." }}
 {{- end }}
 apiVersion: app.redislabs.com/v1alpha1

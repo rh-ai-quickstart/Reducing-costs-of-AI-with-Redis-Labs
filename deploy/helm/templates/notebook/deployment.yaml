@@ -58,9 +58,9 @@ spec:
             - name: COMPLEX_MODEL_ENDPOINT
               value: {{ .Values.secrets.model.complexEndpoint | default .Values.secrets.model.endpoint | default .Values.secrets.model.simpleEndpoint | quote }}
             - name: SIMPLE_MODEL_KEY
-              value: {{ .Values.secrets.model.simpleApiKey | quote }}
+              value: {{ .Values.secrets.model.simpleApiKey | default .Values.secrets.model.apiKey | quote }}
             - name: COMPLEX_MODEL_KEY
-              value: {{ .Values.secrets.model.complexApiKey | quote }}
+              value: {{ .Values.secrets.model.complexApiKey | default .Values.secrets.model.apiKey | quote }}
             - name: COMPLEX_MODEL_NAME
               value: {{ .Values.secrets.model.complexModelName | quote }}
             - name: SIMPLE_MODEL_NAME

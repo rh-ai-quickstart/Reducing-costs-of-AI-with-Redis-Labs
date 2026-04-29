@@ -34,20 +34,12 @@ help: ## Show targets and current settings
 	@awk 'BEGIN {FS = ":.*##"; printf "Targets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 .PHONY: deps
-<<<<<<< HEAD
-<<<<<<< HEAD
 deps: ## helm dependency update (OT subcharts; only needed when redis.useOtContainerKitOperator is true)
-=======
-deps: ## helm dependency update (packages charts/redis-operator, charts/redis)
->>>>>>> 522620f (redis operator)
-=======
-deps: ## helm dependency update (OT subcharts; only needed when redis.useOtContainerKitOperator is true)
->>>>>>> 3ff4549 (redis operator)
 	helm dependency update $(CHART_DIR)
 
 .PHONY: lint
-lint: ## helm lint
-	helm lint $(CHART_DIR)
+lint: ## helm lint (skips REC/REDB CRD preflight; lint has no --api-versions)
+	helm lint $(CHART_DIR) --set redis.skipCapabilityCheck=true
 
 .PHONY: template
 template: ## Render manifests to stdout (same namespace as deploy)
@@ -86,11 +78,9 @@ deploy: validate-secrets deps create-namespace ## validate secrets + helm upgrad
 	@echo "Done. Pods: $(KUBECTL) get pods -n $(NAMESPACE)"
 
 .PHONY: logs-clone
-logs-clone: ## Logs from the notebook git-sync init container (same pod as the workbench; no separate Job)
-	@POD=$$($(KUBECTL) get pods -n $(NAMESPACE) --no-headers -o name 2>/dev/null | grep -- '-notebook-' | head -1 | sed 's|^pod/||'); \
-	if [ -z "$$POD" ]; then echo "No notebook pod name containing -notebook- in $(NAMESPACE)."; exit 1; fi; \
-	$(KUBECTL) logs -n $(NAMESPACE) "$$POD" -c git-sync-demo --tail=200 2>/dev/null || \
-		$(KUBECTL) logs -n $(NAMESPACE) "$$POD" --tail=200 --all-containers=true
+logs-clone: ## Logs from the git-clone post-install Job pods (if any)
+	@$(KUBECTL) logs -n $(NAMESPACE) -l app.kubernetes.io/component=notebook-setup --tail=200 --all-containers=true 2>/dev/null || \
+		echo "No clone job pods found in $(NAMESPACE)."
 
 .PHONY: undeploy
 undeploy: ## helm uninstall (namespace left in place)
