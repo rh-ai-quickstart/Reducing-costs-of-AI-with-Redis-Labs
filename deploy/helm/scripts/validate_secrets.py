@@ -27,11 +27,7 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     """Shallow-compatible merge: override keys replace base; nested dicts merge recursively."""
     out: dict[str, Any] = dict(base)
     for key, val in override.items():
-        if (
-            key in out
-            and isinstance(out[key], dict)
-            and isinstance(val, dict)
-        ):
+        if key in out and isinstance(out[key], dict) and isinstance(val, dict):
             out[key] = _deep_merge(out[key], val)
         else:
             out[key] = val
@@ -69,32 +65,33 @@ def main() -> None:
 
     errors: list[str] = []
 
-    if not _nonempty_str(model.get("simpleApiKey") or not _nonempty_str(model.get("complexApiKey"))):
+    if not _nonempty_str(model.get("apiKey")):
         errors.append(
-            "secrets.model.simpleApiKey and secrets.model.complexApiKey must be a non-empty string (your LLM API key)."
+            "secrets.model.apiKey must be a non-empty string (your LLM API key)."
         )
 
-    for key in ("endpoint", "complexModelName", "simpleModelName", "simpleEndpoint", "complexEndpoint"):
+    for key in ("endpoint", "complexModelName", "simpleModelName"):
         if not _nonempty_str(model.get(key)):
             errors.append(
                 f"secrets.model.{key} must be set and non-empty "
-                f"(not null, not \"\"); check {secret_path.name} after merge with {base_path.name}."
+                f'(not null, not ""); check {secret_path.name} after merge with {base_path.name}.'
             )
 
     redis_cfg = merged.get("redis") or {}
     if not isinstance(redis_cfg, dict):
         redis_cfg = {}
     use_ot = bool(redis_cfg.get("useOtContainerKitOperator"))
+    use_enterprise = bool(redis_cfg.get("useRedisEnterpriseOperator"))
     builtin = redis_cfg.get("builtin") or {}
     builtin_on = True
     if isinstance(builtin, dict) and "enabled" in builtin:
         builtin_on = bool(builtin.get("enabled"))
 
-    external_redis = not use_ot and not builtin_on
+    external_redis = not use_ot and not use_enterprise and not builtin_on
     if external_redis and not _nonempty_str(redis_secret.get("url")):
         errors.append(
-            "With builtin Redis and the OT operator both off, secrets.redis.url "
-            "must be a non-empty redis:// or rediss:// URL."
+            "With builtin Redis, the OT operator, and the Redis Enterprise operator "
+            "all off, secrets.redis.url must be a non-empty redis:// or rediss:// URL."
         )
 
     if errors:

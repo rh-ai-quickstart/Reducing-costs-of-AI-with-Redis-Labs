@@ -1,4 +1,4 @@
-{{- if and .Values.redis.builtin.enabled (not .Values.redis.useOtContainerKitOperator) }}
+{{- if and .Values.redis.builtin.enabled (not .Values.redis.useOtContainerKitOperator) (not .Values.redis.useRedisEnterpriseOperator) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

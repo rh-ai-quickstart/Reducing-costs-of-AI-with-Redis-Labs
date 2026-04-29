@@ -7,20 +7,35 @@ global:
 
 # Redis for notebooks: pick one primary path.
 #
-# 1) Builtin Redis Stack (default): in-chart Deployment + Service — no cluster-wide
-#    operator, no helm dependency on OT charts. Good for demos and redisvl.
-#    Set redis.useOtContainerKitOperator: false and redis.builtin.enabled: true
+# 1) Redis Enterprise Operator (REC + REDB) — DEFAULT: redis.useRedisEnterpriseOperator: true.
+#    The chart does NOT install the operator itself — install the
+#    redis-enterprise-operator-cert package from OperatorHub into the SAME namespace
+#    as this chart release first (the operator only supports OwnNamespace install).
+#    The chart then creates a RedisEnterpriseCluster + RedisEnterpriseDatabase CR
+#    and wires the notebook to the auto-generated DB password secret.
 #
-# 2) OT-CONTAINER-KIT operator + Redis CR: set redis.useOtContainerKitOperator: true,
-#    run `make -f deploy/helm/Makefile deps`, see deploy/README.md for admin notes.
+# 2) Builtin Redis Stack: in-chart Deployment + Service — no cluster-wide operator,
+#    no helm dependency on OT charts. Good for laptop / vanilla OpenShift demos.
+#    Set redis.useRedisEnterpriseOperator: false and redis.builtin.enabled: true.
 #
-# 3) External only: redis.useOtContainerKitOperator: false, redis.builtin.enabled: false,
-#    set secrets.redis.url to your broker URL.
+# 3) OT-CONTAINER-KIT operator + Redis CR: set redis.useOtContainerKitOperator: true
+#    (and redis.useRedisEnterpriseOperator: false), run `make -f deploy/helm/Makefile deps`,
+#    see deploy/README.md for admin notes.
+#
+# 4) External only: all three flags off, set secrets.redis.url to your broker URL.
 redis:
   useOtContainerKitOperator: false
+  useRedisEnterpriseOperator: true
+
+  # Skip the friendly preflight that fails fast when the redis-enterprise CRDs
+  # (app.redislabs.com/v1, .../v1alpha1) are not present in the cluster's API
+  # server. Leave false for real installs/upgrades. Set true for `helm lint`
+  # or `helm template` runs that don't pass --api-versions, to suppress the
+  # preflight noise without losing the safety check at deploy time.
+  skipCapabilityCheck: false
 
   builtin:
-    enabled: true
+    enabled: false
     image:
       repository: docker.io/redis/redis-stack-server
       tag: "7.4.0-v3"
@@ -48,6 +63,43 @@ redis:
   connectionConfigMap:
     enabled: true
     name: ""
+
+  # Redis Enterprise (REC + REDB) — only used when useRedisEnterpriseOperator: true.
+  # The redis-enterprise-operator must already be installed (via OperatorHub) into
+  # this release's namespace; the chart creates the CRs only.
+  enterprise:
+    cluster:
+      name: rec
+      nodes: 3
+      # Per-node resources for the Redis Enterprise pods (statefulset created by REC).
+      redisEnterpriseNodeResources:
+        limits:
+          cpu: "2000m"
+          memory: 4Gi
+        requests:
+          cpu: "1000m"
+          memory: 4Gi
+      persistentSpec:
+        enabled: true
+        storageClassName: ""
+        volumeSize: 10Gi
+      # Optional override of the cluster image registry/repos. Defaults below
+      # match the Red Hat–certified images shipped with the OperatorHub package.
+      bootstrapperImageSpec:
+        repository: registry.connect.redhat.com/redislabs/redis-enterprise-operator
+      redisEnterpriseImageSpec:
+        repository: registry.connect.redhat.com/redislabs/redis-enterprise
+      redisEnterpriseServicesRiggerImageSpec:
+        repository: registry.connect.redhat.com/redislabs/services-manager
+    database:
+      name: redb
+      memorySize: 256MB
+      shardCount: 1
+      replication: true
+      # Redis Enterprise auto-creates a Secret named "redb-<database.name>" with
+      # keys: password, port, service_names. Override only if your operator
+      # version uses a different naming convention.
+      passwordSecretName: ""
 
 redis-operator:
   redisOperator:
@@ -91,9 +143,21 @@ notebook:
   enabled: true
   username: "admin"
 
+  # Workbench delivery mode:
+  #   "Deployment" (default) — plain Deployment + Service + Route. Works on any
+  #     OpenShift cluster; no RHOAI / ODH notebook-controller required.
+  #   "Notebook"             — Kubeflow `kubeflow.org/v1` Notebook CR. Requires
+  #     RHOAI (or upstream ODH notebook-controller) and gives you the dashboard
+  #     workbench experience with OAuth-proxy auth injected by the controller.
+  kind: "Deployment"
+
   image:
-    repository: image-registry.openshift-image-registry.svc:5000/redhat-ods-applications/tensorflow
-    tag: "2025.2"
+    # Default is the public Open Data Hub minimal workbench image — pullable
+    # from any cluster and built for OpenShift's restricted-v2 SCC (random UID
+    # + group 0). When kind=Notebook on RHOAI, override to the RHOAI image
+    # stream, e.g. image-registry.openshift-image-registry.svc:5000/redhat-ods-applications/tensorflow:2025.2
+    repository: quay.io/opendatahub/odh-workbench-jupyter-minimal-cpu-py312-ubi9
+    tag: "latest"
     pullPolicy: IfNotPresent
 
   resources:
@@ -108,11 +172,21 @@ notebook:
     size: 20Gi
     storageClassName: ""
 
+  # Browser auth for the Deployment-mode notebook. Empty token = no auth (matches
+  # the existing Notebook-CR posture, which relies on the OAuth proxy). Set to a
+  # non-empty string to require it as a query param / header. Ignored when
+  # kind=Notebook (RHOAI's OAuth proxy handles auth there).
+  auth:
+    token: ""
+
+  # OpenShift Route for browser access in Deployment mode. Ignored when
+  # kind=Notebook (the notebook-controller creates its own Route).
+  route:
+    enabled: true
+    host: ""
+
   gitSync:
     enabled: true
     repo: "https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs.git"
-    branch: "rj_helm"
+    branch: "main"
     image: "alpine/git:latest"
-    # When true, deletes demo/ on the PVC and re-clones on the next notebook pod start.
-    # Default false: skip sync if demo/notebooks already exists (avoids RWO multi-attach from a separate Job).
-    forceRefresh: true

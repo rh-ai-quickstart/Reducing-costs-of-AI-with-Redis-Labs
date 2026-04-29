@@ -1,4 +1,4 @@
-{{- if and .Values.redis.builtin.enabled (not .Values.redis.useOtContainerKitOperator) .Values.redis.connectionConfigMap.enabled }}
+{{- if and .Values.redis.builtin.enabled (not .Values.redis.useOtContainerKitOperator) (not .Values.redis.useRedisEnterpriseOperator) .Values.redis.connectionConfigMap.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

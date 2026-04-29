@@ -1,0 +1,59 @@
+Release {{ .Release.Name }} installed in namespace {{ .Release.Namespace }}.
+
+Notebook delivery mode: {{ .Values.notebook.kind }}
+{{- if eq .Values.notebook.kind "Deployment" }}
+
+Plain Deployment + Service{{ if .Values.notebook.route.enabled }} + Route{{ end }} (no RHOAI required).
+
+Wait for the workbench pod to come up:
+  oc rollout status deployment/{{ include "redis-notebook.notebookName" . }} -n {{ .Release.Namespace }}
+
+{{- if and .Values.notebook.route.enabled (.Capabilities.APIVersions.Has "route.openshift.io/v1") }}
+
+Browser URL (Route, edge TLS):
+  oc get route {{ include "redis-notebook.notebookName" . }} -n {{ .Release.Namespace }} -o jsonpath='https://{.spec.host}{"\n"}'
+{{- if .Values.notebook.auth.token }}
+
+Auth: token required. Append `?token={{ .Values.notebook.auth.token }}` to the URL.
+{{- else }}
+
+Auth: NONE. The Route is publicly reachable on the cluster's wildcard domain;
+restrict access via NetworkPolicy / Route host or set notebook.auth.token in values.yaml.
+{{- end }}
+{{- else }}
+
+Port-forward access (no Route configured / Route CRD missing):
+  oc port-forward -n {{ .Release.Namespace }} svc/{{ include "redis-notebook.notebookName" . }} 8888:8888
+  open http://localhost:8888
+{{- end }}
+
+{{- else if eq .Values.notebook.kind "Notebook" }}
+
+Kubeflow Notebook CR — RHOAI / ODH notebook-controller will reconcile this into
+a StatefulSet + Service + Route with OAuth-proxy auth.
+
+Open the workbench from the OpenShift AI dashboard (Data Science Projects ->
+this namespace -> Workbenches), or:
+  oc get notebook {{ include "redis-notebook.notebookName" . }} -n {{ .Release.Namespace }}
+{{- end }}
+
+Redis URL injected into the notebook:
+  {{ include "redis-notebook.redisUrl" . }}
+{{- if .Values.redis.useRedisEnterpriseOperator }}
+
+Redis Enterprise mode: the URL above uses Kubernetes $(VAR) interpolation;
+REDIS_PASSWORD and REDIS_PORT are sourced from the operator-generated Secret
+"{{ include "redis-notebook.redisEnterpriseSecretName" . }}" at pod start.
+
+Wait for the cluster + database to come up (the operator can take a few minutes
+to bootstrap nodes and provision the database):
+  oc get rec  {{ .Values.redis.enterprise.cluster.name }}  -n {{ .Release.Namespace }} -w
+  oc get redb {{ .Values.redis.enterprise.database.name }} -n {{ .Release.Namespace }} -w
+
+Inspect the auto-generated DB credentials (password, port, service_names):
+  oc get secret {{ include "redis-notebook.redisEnterpriseSecretName" . }} -n {{ .Release.Namespace }} -o yaml
+{{- end }}
+
+Notebooks land in /opt/app-root/src/demo/notebooks (cloned by the post-install Job).
+Tail the clone job logs with:
+  make -f deploy/helm/Makefile logs-clone NAMESPACE={{ .Release.Namespace }}

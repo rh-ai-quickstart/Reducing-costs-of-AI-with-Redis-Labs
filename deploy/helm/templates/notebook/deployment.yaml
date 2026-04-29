@@ -1,0 +1,123 @@
+{{- if and .Values.notebook.enabled (eq .Values.notebook.kind "Deployment") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "redis-notebook.notebookName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "redis-notebook.notebookLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "redis-notebook.notebookSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "redis-notebook.notebookSelectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "redis-notebook.serviceAccountName" . }}
+      containers:
+        - name: notebook
+          image: {{ .Values.notebook.image.repository }}:{{ .Values.notebook.image.tag }}
+          imagePullPolicy: {{ .Values.notebook.image.pullPolicy }}
+          workingDir: /opt/app-root/src
+          env:
+            - name: NOTEBOOK_ARGS
+              value: >-
+                --ServerApp.port=8888
+                --ServerApp.ip=0.0.0.0
+                --ServerApp.token={{ .Values.notebook.auth.token | default "" }}
+                --ServerApp.password=''
+                --ServerApp.allow_origin='*'
+                --ServerApp.quit_button=False
+            - name: RESTARTABLE
+              value: "yes"
+            - name: JUPYTER_IMAGE
+              value: {{ .Values.notebook.image.repository }}:{{ .Values.notebook.image.tag }}
+            - name: JUPYTER_RUNTIME_DIR
+              value: /opt/app-root/src/.jupyter/runtime
+            - name: JUPYTER_DATA_DIR
+              value: /opt/app-root/src/.jupyter/data
+            - name: JUPYTER_CONFIG_DIR
+              value: /opt/app-root/src/.jupyter/config
+            - name: IPYTHONDIR
+              value: /opt/app-root/src/.ipython
+            - name: HOME
+              value: /opt/app-root/src
+            - name: CONDARC
+              value: /opt/app-root/src/.condarc
+            - name: MODEL_API_KEY
+              value: {{ .Values.secrets.model.apiKey | quote }}
+            - name: MODEL_ENDPOINT
+              value: {{ .Values.secrets.model.endpoint | quote }}
+            - name: SIMPLE_MODEL_ENDPOINT
+              value: {{ .Values.secrets.model.simpleEndpoint | default .Values.secrets.model.endpoint | default .Values.secrets.model.complexEndpoint | quote }}
+            - name: COMPLEX_MODEL_ENDPOINT
+              value: {{ .Values.secrets.model.complexEndpoint | default .Values.secrets.model.endpoint | default .Values.secrets.model.simpleEndpoint | quote }}
+            - name: SIMPLE_MODEL_KEY
+              value: {{ .Values.secrets.model.simpleApiKey | default .Values.secrets.model.apiKey | quote }}
+            - name: COMPLEX_MODEL_KEY
+              value: {{ .Values.secrets.model.complexApiKey | default .Values.secrets.model.apiKey | quote }}
+            - name: COMPLEX_MODEL_NAME
+              value: {{ .Values.secrets.model.complexModelName | quote }}
+            - name: SIMPLE_MODEL_NAME
+              value: {{ .Values.secrets.model.simpleModelName | quote }}
+            {{- include "redis-notebook.redisEnv" . | nindent 12 }}
+          ports:
+            - containerPort: 8888
+              name: notebook
+              protocol: TCP
+          resources:
+            limits:
+              cpu: {{ .Values.notebook.resources.limits.cpu | quote }}
+              memory: {{ .Values.notebook.resources.limits.memory | quote }}
+            requests:
+              cpu: {{ .Values.notebook.resources.requests.cpu | quote }}
+              memory: {{ .Values.notebook.resources.requests.memory | quote }}
+          startupProbe:
+            httpGet:
+              scheme: HTTP
+              path: /api
+              port: notebook
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 60
+          livenessProbe:
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+            httpGet:
+              scheme: HTTP
+              path: /api
+              port: notebook
+          readinessProbe:
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+            httpGet:
+              scheme: HTTP
+              path: /api
+              port: notebook
+          volumeMounts:
+            - name: workspace
+              mountPath: /opt/app-root/src
+            - name: shm
+              mountPath: /dev/shm
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{ include "redis-notebook.fullname" . }}-notebook-pvc
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+{{- end }}
