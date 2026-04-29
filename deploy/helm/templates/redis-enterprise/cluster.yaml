@@ -1,0 +1,39 @@
+{{- if .Values.redis.useRedisEnterpriseOperator }}
+{{- if not (.Capabilities.APIVersions.Has "app.redislabs.com/v1") }}
+{{- fail "redis.useRedisEnterpriseOperator=true requires the app.redislabs.com/v1 RedisEnterpriseCluster CRD. Install the redis-enterprise-operator-cert package from OperatorHub into this release's namespace (OwnNamespace install mode), then re-run helm install/upgrade. Or set redis.useRedisEnterpriseOperator=false to use the builtin Redis Stack instead." }}
+{{- end }}
+apiVersion: app.redislabs.com/v1
+kind: RedisEnterpriseCluster
+metadata:
+  name: {{ .Values.redis.enterprise.cluster.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "redis-notebook.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-enterprise
+spec:
+  nodes: {{ .Values.redis.enterprise.cluster.nodes }}
+  {{- with .Values.redis.enterprise.cluster.redisEnterpriseNodeResources }}
+  redisEnterpriseNodeResources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  persistentSpec:
+    enabled: {{ .Values.redis.enterprise.cluster.persistentSpec.enabled }}
+    {{- with .Values.redis.enterprise.cluster.persistentSpec.storageClassName }}
+    storageClassName: {{ . | quote }}
+    {{- end }}
+    {{- with .Values.redis.enterprise.cluster.persistentSpec.volumeSize }}
+    volumeSize: {{ . | quote }}
+    {{- end }}
+  {{- with .Values.redis.enterprise.cluster.bootstrapperImageSpec }}
+  bootstrapperImageSpec:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.redis.enterprise.cluster.redisEnterpriseImageSpec }}
+  redisEnterpriseImageSpec:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.redis.enterprise.cluster.redisEnterpriseServicesRiggerImageSpec }}
+  redisEnterpriseServicesRiggerImageSpec:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

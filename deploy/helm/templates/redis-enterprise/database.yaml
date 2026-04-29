@@ -1,0 +1,21 @@
+{{- if .Values.redis.useRedisEnterpriseOperator }}
+{{- if not (.Capabilities.APIVersions.Has "app.redislabs.com/v1alpha1") }}
+{{- fail "redis.useRedisEnterpriseOperator=true requires the app.redislabs.com/v1alpha1 RedisEnterpriseDatabase CRD. Install the redis-enterprise-operator-cert package from OperatorHub into this release's namespace, then re-run helm install/upgrade." }}
+{{- end }}
+apiVersion: app.redislabs.com/v1alpha1
+kind: RedisEnterpriseDatabase
+metadata:
+  name: {{ .Values.redis.enterprise.database.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "redis-notebook.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-enterprise
+  annotations:
+    helm.sh/hook-weight: "1"
+spec:
+  redisEnterpriseCluster:
+    name: {{ .Values.redis.enterprise.cluster.name }}
+  memorySize: {{ .Values.redis.enterprise.database.memorySize | quote }}
+  shardCount: {{ .Values.redis.enterprise.database.shardCount }}
+  replication: {{ .Values.redis.enterprise.database.replication }}
+{{- end }}

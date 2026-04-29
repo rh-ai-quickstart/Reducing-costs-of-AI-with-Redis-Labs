@@ -1,0 +1,25 @@
+{{- if and .Values.notebook.enabled (eq .Values.notebook.kind "Deployment") .Values.notebook.route.enabled }}
+{{- if .Capabilities.APIVersions.Has "route.openshift.io/v1" }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "redis-notebook.notebookName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "redis-notebook.notebookLabels" . | nindent 4 }}
+spec:
+  {{- with .Values.notebook.route.host }}
+  host: {{ . | quote }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ include "redis-notebook.notebookName" . }}
+    weight: 100
+  port:
+    targetPort: notebook
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+{{- end }}
+{{- end }}
