@@ -1,0 +1,18 @@
+{{- if and .Values.redis.useRedisEnterpriseOperator .Values.redis.enterprise.olm.enabled }}
+{{- if and (not .Values.redis.enterprise.olm.skipCapabilityCheck) (not (.Capabilities.APIVersions.Has "operators.coreos.com/v1alpha1")) }}
+{{- fail "redis.enterprise.olm.enabled=true requires operators.coreos.com/v1alpha1 (Subscription). Set redis.enterprise.olm.skipCapabilityCheck=true only for helm lint/template without cluster API metadata." }}
+{{- end }}
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: {{ .Values.redis.enterprise.olm.subscription.name | quote }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "redis-notebook.redisEnterpriseOLMLabels" . | nindent 4 }}
+spec:
+  channel: {{ .Values.redis.enterprise.olm.subscription.channel | quote }}
+  installPlanApproval: {{ .Values.redis.enterprise.olm.subscription.installPlanApproval | quote }}
+  name: {{ .Values.redis.enterprise.olm.subscription.name | quote }}
+  source: {{ .Values.redis.enterprise.olm.subscription.source | quote }}
+  sourceNamespace: {{ .Values.redis.enterprise.olm.subscription.sourceNamespace | quote }}
+{{- end }}

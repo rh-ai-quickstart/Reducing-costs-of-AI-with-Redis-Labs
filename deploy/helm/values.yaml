@@ -8,21 +8,19 @@ global:
 # Redis for notebooks: pick one primary path.
 #
 # 1) Redis Enterprise Operator (REC + REDB) — DEFAULT: redis.useRedisEnterpriseOperator: true.
-#    The chart does NOT install the operator itself — install the
-#    redis-enterprise-operator-cert package from OperatorHub into the SAME namespace
-#    as this chart release first (the operator only supports OwnNamespace install).
-#    The chart then creates a RedisEnterpriseCluster + RedisEnterpriseDatabase CR
-#    and wires the notebook to the auto-generated DB password secret.
+#    OLM for redis-enterprise-operator-cert is OFF by default (redis.enterprise.olm.enabled).
+#    Install the operator from OperatorHub into this namespace first, or use
+#    `make -f deploy/helm/Makefile deploy-redis-enterprise-olm` (Redis OLM only) or
+#    `make ... deploy-all` (Redis OLM + OpenShift AI OLM).
+#    The chart always creates RedisEnterpriseCluster + RedisEnterpriseDatabase CRs when
+#    useRedisEnterpriseOperator is true and wires the notebook to the operator-generated
+#    DB password Secret once the operator reconciles them.
 #
-# 2) Builtin Redis Stack: in-chart Deployment + Service — no cluster-wide operator,
-#    no helm dependency on OT charts. Good for laptop / vanilla OpenShift demos.
-#    Set redis.useRedisEnterpriseOperator: false and redis.builtin.enabled: true.
-#
-# 3) OT-CONTAINER-KIT operator + Redis CR: set redis.useOtContainerKitOperator: true
+# 2) OT-CONTAINER-KIT operator + Redis CR: set redis.useOtContainerKitOperator: true
 #    (and redis.useRedisEnterpriseOperator: false), run `make -f deploy/helm/Makefile deps`,
 #    see deploy/README.md for admin notes.
 #
-# 4) External only: all three flags off, set secrets.redis.url to your broker URL.
+# 3) External only: both operator flags false, set secrets.redis.url to your broker URL.
 redis:
   useOtContainerKitOperator: false
   useRedisEnterpriseOperator: true
@@ -34,39 +32,7 @@ redis:
   # preflight noise without losing the safety check at deploy time.
   skipCapabilityCheck: false
 
-  builtin:
-    enabled: false
-    image:
-      repository: docker.io/redis/redis-stack-server
-      tag: "7.4.0-v3"
-      pullPolicy: IfNotPresent
-    args: []
-    service:
-      type: ClusterIP
-      port: 6379
-    resources:
-      limits:
-        cpu: "1"
-        memory: 2Gi
-      requests:
-        cpu: 100m
-        memory: 512Mi
-    persistence:
-      enabled: false
-      size: 5Gi
-      accessMode: ReadWriteOnce
-      storageClassName: ""
-    podAnnotations: {}
-    podSecurityContext: {}
-    containerSecurityContext: {}
-
-  connectionConfigMap:
-    enabled: true
-    name: ""
-
   # Redis Enterprise (REC + REDB) — only used when useRedisEnterpriseOperator: true.
-  # The redis-enterprise-operator must already be installed (via OperatorHub) into
-  # this release's namespace; the chart creates the CRs only.
   enterprise:
     cluster:
       name: rec
@@ -100,6 +66,21 @@ redis:
       # keys: password, port, service_names. Override only if your operator
       # version uses a different naming convention.
       passwordSecretName: ""
+
+    # OLM install for Redis Enterprise (certified-operators). Default false so a plain
+    # `make deploy` does not modify OLM; use `make deploy-all` or set enabled: true.
+    # Set createOperatorGroup: false if this namespace already has an OperatorGroup.
+    olm:
+      enabled: false
+      createOperatorGroup: true
+      operatorGroupName: redis-enterprise-operator-group
+      skipCapabilityCheck: false
+      subscription:
+        name: redis-enterprise-operator-cert
+        channel: production
+        installPlanApproval: Automatic
+        source: certified-operators
+        sourceNamespace: openshift-marketplace
 
 redis-operator:
   redisOperator:
@@ -139,6 +120,24 @@ secrets:
   redis:
     url: "redis://localhost:6379"
 
+# Optional OLM install for Red Hat OpenShift AI (rhods-operator). Default off; use
+# `make deploy-all` to enable together with Redis Enterprise OLM. Templates under
+# templates/openshift-ai/ require this block to exist (merge-safe with values-secret).
+openshiftAI:
+  operator:
+    enabled: false
+    namespace: redhat-ods-operator
+    createNamespace: true
+    createOperatorGroup: true
+    operatorGroupName: openshift-ai-operator-group
+    skipCapabilityCheck: false
+    subscription:
+      name: rhods-operator
+      channel: fast
+      installPlanApproval: Automatic
+      source: redhat-operators
+      sourceNamespace: openshift-marketplace
+
 notebook:
   enabled: true
   username: "admin"
@@ -152,13 +151,21 @@ notebook:
   kind: "Deployment"
 
   image:
-    # Default is the public Open Data Hub minimal workbench image — pullable
-    # from any cluster and built for OpenShift's restricted-v2 SCC (random UID
-    # + group 0). When kind=Notebook on RHOAI, override to the RHOAI image
-    # stream, e.g. image-registry.openshift-image-registry.svc:5000/redhat-ods-applications/tensorflow:2025.2
+    # Public ODH minimal CPU workbench (Py 3.12): works on any OpenShift cluster
+    # without RHOAI image streams or internal-registry pull secrets.
+    #
+    # To use an ImageStream in redhat-ods-applications from another namespace,
+    # grant system:image-puller on that namespace to this chart's ServiceAccount,
+    # then set repository/tag to the internal registry reference.
+    # Quay does not publish :latest for this repo; pin a tag (see quay.io/.../tag/).
     repository: quay.io/opendatahub/odh-workbench-jupyter-minimal-cpu-py312-ubi9
-    tag: "latest"
+    tag: "d2bb960fba2b235b84771e182ea67809570afdf0"
     pullPolicy: IfNotPresent
+
+  # RHOAI / ODH workbenches may set PIP_INDEX_URL to a curated index without redisvl.
+  # PIP_EXTRA_INDEX_URL lets pip fall back to PyPI for missing packages. Set to ""
+  # for air-gapped installs (bake deps into a custom image instead).
+  pipExtraIndexUrl: "https://pypi.org/simple"
 
   resources:
     limits:
