@@ -115,7 +115,7 @@ This repository includes a **Helm chart** under **`deploy/helm`** (chart name **
 
 - a **Jupyter workbench** with a persistent workspace — by default a plain `Deployment` + `Service` + OpenShift `Route` (works on any OpenShift cluster), or a Kubeflow **`Notebook`** CR when `notebook.kind=Notebook` (requires **Red Hat OpenShift AI** / Open Data Hub),
 - a **post-install Job** that clones this repo and copies **`demo/`** into the workspace,
-- **Redis** via the **Redis Enterprise Operator** by default (`RedisEnterpriseCluster` + `RedisEnterpriseDatabase`). Default **`make deploy`** does not install the operator via OLM—install **redis-enterprise-operator-cert** from OperatorHub into the release namespace first, or run **`make -f deploy/helm/Makefile deploy-all`**. Alternatives: in-chart **Redis Stack** (`redis.useRedisEnterpriseOperator=false`, `redis.builtin.enabled=true`), the **OT-CONTAINER-KIT** operator + Redis CR, or an **external** `REDIS_URL`.
+- **Redis** via the **Redis Enterprise Operator** by default (`RedisEnterpriseCluster` + `RedisEnterpriseDatabase`). Default **`make deploy`** does not install the operator via OLM—install **redis-enterprise-operator-cert** from OperatorHub into the release namespace first, or run **`make -f deploy/helm/Makefile deploy-all`**. Alternatives: the **OT-CONTAINER-KIT** operator + Redis CR, or an **external** `REDIS_URL` (`secrets.redis.url` when both operator flags are off).
 
 **Cluster prerequisites:** the default `notebook.kind=Deployment` mode has no notebook-controller dependency — `oc` + `helm` against any OpenShift cluster is enough. Set `notebook.kind=Notebook` only if **RHOAI** (or upstream **ODH**) is installed; the chart fails fast with a friendly error otherwise. Quick check: `oc get crd notebooks.kubeflow.org`. The default **Redis Enterprise** path additionally requires the **redis-enterprise-operator-cert** OperatorHub package installed in the release namespace (`OwnNamespace` install mode); check with `oc get crd redisenterpriseclusters.app.redislabs.com`.
 
@@ -147,7 +147,7 @@ make -f deploy/helm/Makefile help
 make -f deploy/helm/Makefile deploy
 ```
 
-Operator vs. builtin Redis, plain **`helm upgrade`** examples, RBAC, and troubleshooting: see **`deploy/README.md`**.
+Redis deployment options, plain **`helm upgrade`** examples, RBAC, and troubleshooting: see **`deploy/README.md`**.
 
 ## Run locally
 
@@ -262,7 +262,7 @@ This repository includes a **Helm chart** under **`deploy/helm`** (chart name **
 
 - an **OpenShift AI** Kubeflow **`Notebook`** workbench with a persistent workspace,
 - a **post-install Job** that clones this repo and copies **`demo/`** into the workspace,
-- **Redis Stack** in-cluster by default (suitable for **redisvl** / `02_router_cache.ipynb`), with optional **OT-CONTAINER-KIT** operator + Redis CR or an **external** `REDIS_URL` instead.
+- **Redis Enterprise** in-cluster by default (`RedisEnterpriseCluster` + `RedisEnterpriseDatabase`), with optional **OT-CONTAINER-KIT** operator + Redis CR or an **external** `REDIS_URL` instead.
 
 **Before `make deploy`:** create **`deploy/helm/values-secret.yaml`** (gitignored) from **`deploy/helm/values-secret.example.yaml`** and set real values for `secrets.model.apiKey` and the other `secrets.model.*` keys. **`make deploy`** runs **`check-secrets`** (file exists) and **`validate-secrets`** (merged values must not be null/empty for required fields; requires **PyYAML**: `python3 -m pip install pyyaml`).
 
@@ -274,7 +274,7 @@ make -f deploy/helm/Makefile help
 make -f deploy/helm/Makefile deploy
 ```
 
-Operator vs builtin Redis, plain **`helm upgrade`** examples, RBAC, and troubleshooting: see **`deploy/README.md`**.
+Redis deployment options, plain **`helm upgrade`** examples, RBAC, and troubleshooting: see **`deploy/README.md`**.
 
 ## Run locally
 

@@ -1,6 +1,6 @@
 # Helm chart redis-notebook — thin wrapper around helm/oc (or kubectl on vanilla K8s).
 #
-# The chart installs the Jupyter workload, optional Redis (Enterprise / builtin /
+# The chart installs the Jupyter workload, optional Redis (Enterprise /
 # OT operator / external), RBAC, git-clone Job, and optional OLM objects:
 #   - Redis Enterprise OLM (OperatorGroup + Subscription) in the RELEASE namespace
 #     when redis.enterprise.olm.enabled=true (see deploy-redis-enterprise-olm, deploy-all).

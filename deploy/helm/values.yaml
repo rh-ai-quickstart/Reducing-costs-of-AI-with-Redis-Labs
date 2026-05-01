@@ -16,15 +16,11 @@ global:
 #    useRedisEnterpriseOperator is true and wires the notebook to the operator-generated
 #    DB password Secret once the operator reconciles them.
 #
-# 2) Builtin Redis Stack: in-chart Deployment + Service — no cluster-wide operator,
-#    no helm dependency on OT charts. Good for laptop / vanilla OpenShift demos.
-#    Set redis.useRedisEnterpriseOperator: false and redis.builtin.enabled: true.
-#
-# 3) OT-CONTAINER-KIT operator + Redis CR: set redis.useOtContainerKitOperator: true
+# 2) OT-CONTAINER-KIT operator + Redis CR: set redis.useOtContainerKitOperator: true
 #    (and redis.useRedisEnterpriseOperator: false), run `make -f deploy/helm/Makefile deps`,
 #    see deploy/README.md for admin notes.
 #
-# 4) External only: all three flags off, set secrets.redis.url to your broker URL.
+# 3) External only: both operator flags false, set secrets.redis.url to your broker URL.
 redis:
   useOtContainerKitOperator: false
   useRedisEnterpriseOperator: true
@@ -35,36 +31,6 @@ redis:
   # or `helm template` runs that don't pass --api-versions, to suppress the
   # preflight noise without losing the safety check at deploy time.
   skipCapabilityCheck: false
-
-  builtin:
-    enabled: false
-    image:
-      repository: docker.io/redis/redis-stack-server
-      tag: "7.4.0-v3"
-      pullPolicy: IfNotPresent
-    args: []
-    service:
-      type: ClusterIP
-      port: 6379
-    resources:
-      limits:
-        cpu: "1"
-        memory: 2Gi
-      requests:
-        cpu: 100m
-        memory: 512Mi
-    persistence:
-      enabled: false
-      size: 5Gi
-      accessMode: ReadWriteOnce
-      storageClassName: ""
-    podAnnotations: {}
-    podSecurityContext: {}
-    containerSecurityContext: {}
-
-  connectionConfigMap:
-    enabled: true
-    name: ""
 
   # Redis Enterprise (REC + REDB) — only used when useRedisEnterpriseOperator: true.
   enterprise:

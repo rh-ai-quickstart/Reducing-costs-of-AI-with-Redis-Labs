@@ -82,16 +82,12 @@ def main() -> None:
         redis_cfg = {}
     use_ot = bool(redis_cfg.get("useOtContainerKitOperator"))
     use_enterprise = bool(redis_cfg.get("useRedisEnterpriseOperator"))
-    builtin = redis_cfg.get("builtin") or {}
-    builtin_on = True
-    if isinstance(builtin, dict) and "enabled" in builtin:
-        builtin_on = bool(builtin.get("enabled"))
 
-    external_redis = not use_ot and not use_enterprise and not builtin_on
+    external_redis = not use_ot and not use_enterprise
     if external_redis and not _nonempty_str(redis_secret.get("url")):
         errors.append(
-            "With builtin Redis, the OT operator, and the Redis Enterprise operator "
-            "all off, secrets.redis.url must be a non-empty redis:// or rediss:// URL."
+            "With the OT operator and Redis Enterprise operator both off, "
+            "secrets.redis.url must be a non-empty redis:// or rediss:// URL."
         )
 
     if errors:
