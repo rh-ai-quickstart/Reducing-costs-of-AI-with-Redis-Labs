@@ -164,7 +164,7 @@ The `demo/` folder contains everything needed to exercise the router + cache + a
 ```bash
 cd Reducing-costs-of-AI-with-Redis-Labs
 python -m venv .venv && source .venv/bin/activate
-pip install -r demo/scripts/requirements.txt
+pip install -r demo/scripts/requirements.txt --extra-index-url https://pypi.org/simple
 ```
 
 **2. Configure the environment**
@@ -291,7 +291,7 @@ The `demo/` folder contains everything needed to exercise the router + cache + a
 ```bash
 cd Reducing-costs-of-AI-with-Redis-Labs
 python -m venv .venv && source .venv/bin/activate
-pip install -r demo/scripts/requirements.txt
+pip install -r demo/scripts/requirements.txt --extra-index-url https://pypi.org/simple
 ```
 
 **2. Configure the environment**
