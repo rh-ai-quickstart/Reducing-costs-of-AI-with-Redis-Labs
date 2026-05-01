@@ -8,12 +8,13 @@ global:
 # Redis for notebooks: pick one primary path.
 #
 # 1) Redis Enterprise Operator (REC + REDB) — DEFAULT: redis.useRedisEnterpriseOperator: true.
-#    By default the chart also installs OLM (OperatorGroup + Subscription) for
-#    redis-enterprise-operator-cert into the release namespace (OwnNamespace).
-#    Set redis.enterprise.olm.enabled=false to skip OLM and install the operator
-#    manually from OperatorHub first if you prefer.
-#    The chart creates RedisEnterpriseCluster + RedisEnterpriseDatabase CRs and
-#    wires the notebook to the operator-generated DB password Secret.
+#    OLM for redis-enterprise-operator-cert is OFF by default (redis.enterprise.olm.enabled).
+#    Install the operator from OperatorHub into this namespace first, or use
+#    `make -f deploy/helm/Makefile deploy-redis-enterprise-olm` (Redis OLM only) or
+#    `make ... deploy-all` (Redis OLM + OpenShift AI OLM).
+#    The chart always creates RedisEnterpriseCluster + RedisEnterpriseDatabase CRs when
+#    useRedisEnterpriseOperator is true and wires the notebook to the operator-generated
+#    DB password Secret once the operator reconciles them.
 #
 # 2) Builtin Redis Stack: in-chart Deployment + Service — no cluster-wide operator,
 #    no helm dependency on OT charts. Good for laptop / vanilla OpenShift demos.
@@ -100,11 +101,11 @@ redis:
       # version uses a different naming convention.
       passwordSecretName: ""
 
-    # OLM install for Redis Enterprise (certified-operators). When enabled, Helm
-    # creates an OperatorGroup + Subscription in the release namespace. Set
-    # createOperatorGroup: false if this namespace already has an OperatorGroup.
+    # OLM install for Redis Enterprise (certified-operators). Default false so a plain
+    # `make deploy` does not modify OLM; use `make deploy-all` or set enabled: true.
+    # Set createOperatorGroup: false if this namespace already has an OperatorGroup.
     olm:
-      enabled: true
+      enabled: false
       createOperatorGroup: true
       operatorGroupName: redis-enterprise-operator-group
       skipCapabilityCheck: false
@@ -153,8 +154,8 @@ secrets:
   redis:
     url: "redis://localhost:6379"
 
-# Optional OLM install for Red Hat OpenShift AI (rhods-operator). Default off so
-# routine installs do not modify cluster-wide AI infrastructure. Templates under
+# Optional OLM install for Red Hat OpenShift AI (rhods-operator). Default off; use
+# `make deploy-all` to enable together with Redis Enterprise OLM. Templates under
 # templates/openshift-ai/ require this block to exist (merge-safe with values-secret).
 openshiftAI:
   operator:

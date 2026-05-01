@@ -1,8 +1,20 @@
-# OpenShift AI notebook Helm chart — thin wrapper around helm/oc
+# Helm chart redis-notebook — thin wrapper around helm/oc (or kubectl on vanilla K8s).
 #
-# Usage (from anywhere):
+# The chart installs the Jupyter workload, optional Redis (Enterprise / builtin /
+# OT operator / external), RBAC, git-clone Job, and optional OLM objects:
+#   - Redis Enterprise OLM (OperatorGroup + Subscription) in the RELEASE namespace
+#     when redis.enterprise.olm.enabled=true (see deploy-redis-enterprise-olm, deploy-all).
+#   - Red Hat OpenShift AI operator OLM in openshiftAI.operator.namespace (default
+#     redhat-ods-operator): optional Namespace, OperatorGroup, Subscription rhods-operator
+#     when openshiftAI.operator.enabled=true (see deploy-openshift-ai-operator, deploy-all).
+# Defaults in values.yaml leave both OLM paths off; plain `deploy` only applies REC/REDB
+# CRs if Redis Enterprise mode is on—you still need the Redis Enterprise operator CSV
+# in-cluster (OperatorHub or chart OLM).
+#
+# Usage (from repo root):
+#   make -f deploy/helm/Makefile help
 #   make -f deploy/helm/Makefile deploy
-# Or:
+# Or from this directory:
 #   cd deploy/helm && make deploy
 
 # Strip trailing slash from $(dir ...) so paths like $(CHART_DIR)/values.yaml stay clean.
@@ -14,7 +26,7 @@ VALUES_SECRET_FILE ?= $(CHART_DIR)/values-secret.yaml
 NAMESPACE ?= redis-notebook
 RELEASE_NAME ?= redis-notebook
 TIMEOUT ?= 10m
-# Appended to helm upgrade|template (e.g. --set openshiftAI.operator.enabled=true).
+# Appended to helm upgrade|template (e.g. make deploy-all sets Redis OLM + OpenShift AI).
 HELM_EXTRA_ARGS ?=
 
 KUBECTL := $(shell command -v oc 2>/dev/null)
@@ -94,13 +106,29 @@ deploy: validate-secrets deps create-namespace ## validate secrets + helm upgrad
 		$(HELM_EXTRA_ARGS)
 	@echo "Done. Pods: $(KUBECTL) get pods -n $(NAMESPACE)"
 
-.PHONY: deploy-openshift-ai-operator
-deploy-openshift-ai-operator: ## deploy + OLM Subscription/OperatorGroup for rhods-operator (OpenShift AI)
+.PHONY: deploy-all
+deploy-all: ## deploy + Redis Enterprise OLM + OpenShift AI OLM (longer timeout)
+	@echo "Deploying Redis Enterprise OLM + OpenShift AI OLM..."
 	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
+		TIMEOUT=25m \
+		HELM_EXTRA_ARGS='--set redis.enterprise.olm.enabled=true --set openshiftAI.operator.enabled=true'
+
+
+.PHONY: deploy-redis-enterprise-olm
+deploy-redis-enterprise-olm: ## deploy + Redis Enterprise OLM only (Subscription/OperatorGroup; longer timeout)
+	@echo "Deploying Redis Enterprise OLM..."
+	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
+		TIMEOUT=25m \
+		HELM_EXTRA_ARGS='--set redis.enterprise.olm.enabled=true'
+
+.PHONY: deploy-openshift-ai-operator
+deploy-openshift-ai-operator: ## deploy + OpenShift AI OLM only (rhods-operator in openshiftAI.operator.namespace; longer timeout)
+	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
+		TIMEOUT=25m \
 		HELM_EXTRA_ARGS='--set openshiftAI.operator.enabled=true'
 
 .PHONY: deploy-without-redis-enterprise-olm
-deploy-without-redis-enterprise-olm: ## deploy but skip chart-managed Redis Enterprise OLM (operator already installed)
+deploy-without-redis-enterprise-olm: ## deploy with redis.enterprise.olm.enabled=false (same as default values)
 	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
 		HELM_EXTRA_ARGS='--set redis.enterprise.olm.enabled=false'
 

@@ -1,6 +1,6 @@
 {{- if .Values.redis.useRedisEnterpriseOperator }}
 {{- if and (not .Values.redis.skipCapabilityCheck) (not (.Capabilities.APIVersions.Has "app.redislabs.com/v1")) }}
-{{- fail "redis.useRedisEnterpriseOperator=true requires the app.redislabs.com/v1 RedisEnterpriseCluster CRD. Enable redis.enterprise.olm.enabled (default) to install the operator via OLM, install redis-enterprise-operator-cert from OperatorHub manually, or set redis.useRedisEnterpriseOperator=false for builtin Redis Stack." }}
+{{- fail "redis.useRedisEnterpriseOperator=true requires the app.redislabs.com/v1 RedisEnterpriseCluster CRD. Set redis.enterprise.olm.enabled=true (e.g. make deploy-all) to install the operator via OLM, install redis-enterprise-operator-cert from OperatorHub manually, or set redis.useRedisEnterpriseOperator=false for builtin Redis Stack." }}
 {{- end }}
 apiVersion: app.redislabs.com/v1
 kind: RedisEnterpriseCluster
