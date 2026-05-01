@@ -120,6 +120,16 @@ external paths this is just REDIS_URL. For Redis Enterprise we additionally
 inject REDIS_PASSWORD + REDIS_PORT from the operator-managed secret and let
 Kubernetes interpolate them into REDIS_URL with $(VAR) syntax.
 */}}
+{{- define "redis-notebook.openshiftAIOperatorLabels" -}}
+{{ include "redis-notebook.labels" . }}
+app.kubernetes.io/component: openshift-ai-operator
+{{- end }}
+
+{{- define "redis-notebook.redisEnterpriseOLMLabels" -}}
+{{ include "redis-notebook.labels" . }}
+app.kubernetes.io/component: redis-enterprise-olm
+{{- end }}
+
 {{- define "redis-notebook.redisEnv" -}}
 {{- if .Values.redis.useRedisEnterpriseOperator }}
 - name: REDIS_PASSWORD

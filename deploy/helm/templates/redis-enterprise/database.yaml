@@ -1,6 +1,6 @@
 {{- if .Values.redis.useRedisEnterpriseOperator }}
 {{- if and (not .Values.redis.skipCapabilityCheck) (not (.Capabilities.APIVersions.Has "app.redislabs.com/v1alpha1")) }}
-{{- fail "redis.useRedisEnterpriseOperator=true requires the app.redislabs.com/v1alpha1 RedisEnterpriseDatabase CRD. Install the redis-enterprise-operator-cert package from OperatorHub into this release's namespace, then re-run helm install/upgrade." }}
+{{- fail "redis.useRedisEnterpriseOperator=true requires the app.redislabs.com/v1alpha1 RedisEnterpriseDatabase CRD. Enable redis.enterprise.olm.enabled (default) to install the operator via OLM, or install redis-enterprise-operator-cert from OperatorHub into this namespace first." }}
 {{- end }}
 apiVersion: app.redislabs.com/v1alpha1
 kind: RedisEnterpriseDatabase

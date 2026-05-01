@@ -19,19 +19,45 @@ spec:
         {{- include "redis-notebook.notebookSelectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "redis-notebook.serviceAccountName" . }}
+      {{- if .Values.redis.useRedisEnterpriseOperator }}
+      initContainers:
+        - name: wait-redis-db-secret
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              echo "Waiting for Redis Enterprise DB secret {{ include "redis-notebook.redisEnterpriseSecretName" . }} (operator creates it when REDB is ready)..."
+              i=0
+              while [ "$i" -lt 720 ]; do
+                if [ -f /redis-secret/password ] && [ -s /redis-secret/password ]; then
+                  echo "Secret is populated."
+                  exit 0
+                fi
+                i=$((i + 1))
+                sleep 5
+              done
+              echo "Timed out after 1h. Check: oc get rec redb -n {{ .Release.Namespace }}; oc describe redb {{ .Values.redis.enterprise.database.name }} -n {{ .Release.Namespace }}"
+              exit 1
+          volumeMounts:
+            - name: redis-enterprise-db-secret-wait
+              mountPath: /redis-secret
+              readOnly: true
+      {{- end }}
       containers:
         - name: notebook
           image: {{ .Values.notebook.image.repository }}:{{ .Values.notebook.image.tag }}
           imagePullPolicy: {{ .Values.notebook.image.pullPolicy }}
           workingDir: /opt/app-root/src
           env:
+            {{- /* ODH start-notebook.sh appends --ServerApp.ip="" --ServerApp.allow_origin="*" --ServerApp.open_browser=False after NOTEBOOK_ARGS. */}}
             - name: NOTEBOOK_ARGS
               value: >-
                 --ServerApp.port=8888
-                --ServerApp.ip=0.0.0.0
                 --ServerApp.token={{ .Values.notebook.auth.token | default "" }}
                 --ServerApp.password=''
-                --ServerApp.allow_origin='*'
                 --ServerApp.quit_button=False
             - name: RESTARTABLE
               value: "yes"
@@ -49,6 +75,10 @@ spec:
               value: /opt/app-root/src
             - name: CONDARC
               value: /opt/app-root/src/.condarc
+            {{- if .Values.notebook.pipExtraIndexUrl }}
+            - name: PIP_EXTRA_INDEX_URL
+              value: {{ .Values.notebook.pipExtraIndexUrl | quote }}
+            {{- end }}
             - name: MODEL_API_KEY
               value: {{ .Values.secrets.model.apiKey | quote }}
             - name: MODEL_ENDPOINT
@@ -113,6 +143,12 @@ spec:
             - name: shm
               mountPath: /dev/shm
       volumes:
+        {{- if .Values.redis.useRedisEnterpriseOperator }}
+        - name: redis-enterprise-db-secret-wait
+          secret:
+            secretName: {{ include "redis-notebook.redisEnterpriseSecretName" . }}
+            optional: true
+        {{- end }}
         - name: workspace
           persistentVolumeClaim:
             claimName: {{ include "redis-notebook.fullname" . }}-notebook-pvc

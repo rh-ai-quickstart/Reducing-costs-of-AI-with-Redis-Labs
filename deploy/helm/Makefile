@@ -14,6 +14,8 @@ VALUES_SECRET_FILE ?= $(CHART_DIR)/values-secret.yaml
 NAMESPACE ?= redis-notebook
 RELEASE_NAME ?= redis-notebook
 TIMEOUT ?= 10m
+# Appended to helm upgrade|template (e.g. --set openshiftAI.operator.enabled=true).
+HELM_EXTRA_ARGS ?=
 
 KUBECTL := $(shell command -v oc 2>/dev/null)
 ifndef KUBECTL
@@ -30,6 +32,7 @@ help: ## Show targets and current settings
 	@echo "  CHART_DIR=$(CHART_DIR)"
 	@echo "  VALUES_FILE=$(VALUES_FILE)"
 	@echo "  VALUES_SECRET_FILE=$(VALUES_SECRET_FILE)  (required for deploy)"
+	@echo "  HELM_EXTRA_ARGS=$(HELM_EXTRA_ARGS)"
 	@echo ""
 	@awk 'BEGIN {FS = ":.*##"; printf "Targets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
@@ -38,12 +41,25 @@ deps: ## helm dependency update (OT subcharts; only needed when redis.useOtConta
 	helm dependency update $(CHART_DIR)
 
 .PHONY: lint
-lint: ## helm lint (skips REC/REDB CRD preflight; lint has no --api-versions)
-	helm lint $(CHART_DIR) --set redis.skipCapabilityCheck=true
+lint: ## helm lint (skips REC/REDB CRD + OLM preflight; lint has no --api-versions)
+	helm lint $(CHART_DIR) --set redis.skipCapabilityCheck=true --set redis.enterprise.olm.skipCapabilityCheck=true
 
 .PHONY: template
-template: ## Render manifests to stdout (same namespace as deploy)
-	helm template $(RELEASE_NAME) $(CHART_DIR) --namespace $(NAMESPACE)
+template: ## Render manifests to stdout (adds values-secret when file exists; no validate-secrets)
+	@if [ -f "$(VALUES_SECRET_FILE)" ]; then \
+		helm template $(RELEASE_NAME) $(CHART_DIR) --namespace $(NAMESPACE) \
+			--values $(VALUES_FILE) \
+			--values $(VALUES_SECRET_FILE) \
+			--set redis.skipCapabilityCheck=true \
+			--set redis.enterprise.olm.skipCapabilityCheck=true \
+			$(HELM_EXTRA_ARGS); \
+	else \
+		helm template $(RELEASE_NAME) $(CHART_DIR) --namespace $(NAMESPACE) \
+			--values $(VALUES_FILE) \
+			--set redis.skipCapabilityCheck=true \
+			--set redis.enterprise.olm.skipCapabilityCheck=true \
+			$(HELM_EXTRA_ARGS); \
+	fi
 
 .PHONY: create-namespace
 create-namespace: ## Create project/namespace
@@ -74,8 +90,19 @@ deploy: validate-secrets deps create-namespace ## validate secrets + helm upgrad
 		--values $(VALUES_FILE) \
 		--values $(VALUES_SECRET_FILE) \
 		--wait \
-		--timeout $(TIMEOUT)
+		--timeout $(TIMEOUT) \
+		$(HELM_EXTRA_ARGS)
 	@echo "Done. Pods: $(KUBECTL) get pods -n $(NAMESPACE)"
+
+.PHONY: deploy-openshift-ai-operator
+deploy-openshift-ai-operator: ## deploy + OLM Subscription/OperatorGroup for rhods-operator (OpenShift AI)
+	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
+		HELM_EXTRA_ARGS='--set openshiftAI.operator.enabled=true'
+
+.PHONY: deploy-without-redis-enterprise-olm
+deploy-without-redis-enterprise-olm: ## deploy but skip chart-managed Redis Enterprise OLM (operator already installed)
+	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
+		HELM_EXTRA_ARGS='--set redis.enterprise.olm.enabled=false'
 
 .PHONY: logs-clone
 logs-clone: ## Logs from the git-clone post-install Job pods (if any)
