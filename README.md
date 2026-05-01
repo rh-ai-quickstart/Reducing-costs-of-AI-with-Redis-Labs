@@ -260,7 +260,7 @@ Finally, we want to provide insight into what managing a deployment like this on
 
 This repository includes a **Helm chart** under **`deploy/helm`** (chart name **`redis-notebook`**) that can install:
 
-- an **OpenShift AI** Kubeflow **`Notebook`** workbench with a persistent workspace,
+- a **Jupyter workbench** with a persistent workspace — by default a plain `Deployment` + `Service` + OpenShift `Route`, or a Kubeflow **`Notebook`** CR when `notebook.kind=Notebook` (requires **Red Hat OpenShift AI** / Open Data Hub),
 - a **post-install Job** that clones this repo and copies **`demo/`** into the workspace,
 - **Redis Enterprise** in-cluster by default (`RedisEnterpriseCluster` + `RedisEnterpriseDatabase`), with optional **OT-CONTAINER-KIT** operator + Redis CR or an **external** `REDIS_URL` instead.
 
