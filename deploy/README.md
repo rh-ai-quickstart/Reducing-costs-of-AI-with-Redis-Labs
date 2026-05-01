@@ -70,7 +70,7 @@ The same chart installs **Redis** for the notebooks in one of three modes (see *
 
 ## Makefile commands (reference)
 
-All targets are invoked from the **repository root** with `make -f deploy/helm/Makefile <target>` (or `cd deploy/helm && make <target>`). Common variables: **`NAMESPACE`**, **`RELEASE_NAME`**, **`CHART_DIR`**, **`VALUES_FILE`**, **`VALUES_SECRET_FILE`**, **`TIMEOUT`** (default `10m`), **`HELM_EXTRA_ARGS`** (appended to `helm upgrade` / `helm template`).
+All targets are invoked from the **repository root** with `make -f deploy/helm/Makefile <target>` (or `cd deploy/helm && make <target>`). Common variables: **`NAMESPACE`**, **`RELEASE_NAME`**, **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (for **`undeploy`** OLM cleanup; default **`redhat-ods-operator`**, match **`openshiftAI.operator.namespace`** in values), **`CHART_DIR`**, **`VALUES_FILE`**, **`VALUES_SECRET_FILE`**, **`TIMEOUT`** (default `10m`), **`HELM_EXTRA_ARGS`** (appended to `helm upgrade` / `helm template`).
 
 | Target | What it runs | OLM / timeouts |
 |--------|----------------|-----------------|
@@ -87,7 +87,7 @@ All targets are invoked from the **repository root** with `make -f deploy/helm/M
 | **`deploy-all`** | **`deploy`** with **both** Redis Enterprise OLM and OpenShift AI operator flags set **`true`**. | **`TIMEOUT=25m`**. |
 | **`deploy-without-redis-enterprise-olm`** | **`deploy`** with **`redis.enterprise.olm.enabled=false`** explicitly (matches stock **`values.yaml`**). | Default **`TIMEOUT`**. |
 | **`logs-clone`** | Logs from pods labeled **`app.kubernetes.io/component=notebook-setup`**. | — |
-| **`undeploy`** | `helm uninstall` for **`RELEASE_NAME`** in **`NAMESPACE`**; ignores errors if already gone. | Removes release-tracked objects Helm installed (including **`Subscription`** / **`OperatorGroup`** in **`redhat-ods-operator`** when this chart created them). Does **not** delete the **release** **`NAMESPACE`** itself (e.g. `redis-notebook`). If other teams rely on **`rhods-operator`**, avoid chart-managed OpenShift AI OLM or coordinate uninstall. |
+| **`undeploy`** | **`helm uninstall --wait`**, then **`kubectl`/`oc` delete** of **`Subscription`** and **`OperatorGroup`** still matching this release’s Helm labels (`app.kubernetes.io/instance=RELEASE_NAME`, `managed-by=Helm`, component `redis-enterprise-olm` or `openshift-ai-operator`) in **`NAMESPACE`** and **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (default **redhat-ods-operator**). Catches OLM objects Helm sometimes leaves when uninstalling cross-namespace resources. | Does **not** delete the release **`NAMESPACE`** or **`redhat-ods-operator`** itself. CSV/operator pods may disappear shortly after the **`Subscription`** is removed (OLM). Override **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** if your values differ. |
 
 **Quick start (minimal):**
 
@@ -243,4 +243,4 @@ make -f deploy/helm/Makefile undeploy
 helm uninstall redis-notebook --namespace redis-notebook
 ```
 
-**`helm uninstall`** removes resources recorded for this release (including chart-managed OLM objects in **`redhat-ods-operator`** when **`openshiftAI.operator`** created them). It does **not** remove the **release** namespace or the workspace PVC (retained by chart policy). Delete the namespace and PVCs separately for a full cleanup. If uninstall drops the **`rhods-operator`** **`Subscription`**, OLM may remove that operator from the cluster — confirm with your platform team before relying on **`undeploy`** on shared clusters.
+**`make undeploy`** runs **`helm uninstall --wait`**, then deletes any remaining chart-labeled **`Subscription`** / **`OperatorGroup`** for this **`RELEASE_NAME`** in the release namespace and in **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (see Makefile). OLM then tears down CSV/operator workloads; that can take a short time after the **`Subscription`** disappears. The release namespace, **`redhat-ods-operator`**, and the workspace PVC are **not** deleted automatically. On shared clusters, removing **`rhods-operator`** affects everyone using that operator — coordinate with your platform team.

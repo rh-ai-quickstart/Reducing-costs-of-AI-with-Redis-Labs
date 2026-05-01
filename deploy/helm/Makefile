@@ -10,6 +10,9 @@
 # Defaults in values.yaml leave both OLM paths off; plain `deploy` only applies REC/REDB
 # CRs if Redis Enterprise mode is on—you still need the Redis Enterprise operator CSV
 # in-cluster (OperatorHub or chart OLM).
+# `make undeploy` runs helm uninstall --wait, then deletes chart-labeled Subscription +
+# OperatorGroup in NAMESPACE and OPENSHIFT_AI_OPERATOR_NAMESPACE so OLM operators are
+# not left behind when Helm skips cross-namespace cleanup.
 #
 # Usage (from repo root):
 #   make -f deploy/helm/Makefile help
@@ -25,6 +28,8 @@ VALUES_SECRET_FILE ?= $(CHART_DIR)/values-secret.yaml
 
 NAMESPACE ?= redis-notebook
 RELEASE_NAME ?= redis-notebook
+# Used by undeploy to remove chart-managed OpenShift AI OLM objects (must match values.yaml openshiftAI.operator.namespace).
+OPENSHIFT_AI_OPERATOR_NAMESPACE ?= redhat-ods-operator
 TIMEOUT ?= 10m
 # Appended to helm upgrade|template (e.g. make deploy-all sets Redis OLM + OpenShift AI).
 HELM_EXTRA_ARGS ?=
@@ -138,6 +143,23 @@ logs-clone: ## Logs from the git-clone post-install Job pods (if any)
 		echo "No clone job pods found in $(NAMESPACE)."
 
 .PHONY: undeploy
-undeploy: ## helm uninstall (namespace left in place)
-	helm uninstall $(RELEASE_NAME) --namespace $(NAMESPACE) 2>/dev/null || true
-	@echo "Release removed (PVC may remain if policy=keep)."
+undeploy: ## helm uninstall + OLM Subscription/OperatorGroup cleanup (same release labels)
+	@echo "Helm uninstall $(RELEASE_NAME) in namespace $(NAMESPACE)..."
+	@helm uninstall $(RELEASE_NAME) --namespace $(NAMESPACE) --wait 2>/dev/null || true
+	@echo "Removing chart-managed OLM objects (if any remain) for release $(RELEASE_NAME)..."
+	@REL="$(RELEASE_NAME)"; \
+		$(KUBECTL) delete subscriptions.operators.coreos.com -n "$(NAMESPACE)" \
+			-l "app.kubernetes.io/instance=$$REL,app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=redis-enterprise-olm" \
+			--ignore-not-found 2>/dev/null || true; \
+		$(KUBECTL) delete operatorgroups.operators.coreos.com -n "$(NAMESPACE)" \
+			-l "app.kubernetes.io/instance=$$REL,app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=redis-enterprise-olm" \
+			--ignore-not-found 2>/dev/null || true; \
+		$(KUBECTL) delete subscriptions.operators.coreos.com -n "$(OPENSHIFT_AI_OPERATOR_NAMESPACE)" \
+			-l "app.kubernetes.io/instance=$$REL,app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=openshift-ai-operator" \
+			--ignore-not-found 2>/dev/null || true; \
+		$(KUBECTL) delete operatorgroups.operators.coreos.com -n "$(OPENSHIFT_AI_OPERATOR_NAMESPACE)" \
+			-l "app.kubernetes.io/instance=$$REL,app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=openshift-ai-operator" \
+			--ignore-not-found 2>/dev/null || true
+	@echo "Done. Release namespace was not deleted; workspace PVC may remain (chart policy=keep)."
+	@echo "OLM may take a minute to tear down CSV/operator workloads after Subscription removal."
+	@echo "OpenShift AI namespace $(OPENSHIFT_AI_OPERATOR_NAMESPACE) is left in place (shared cluster scope)."
