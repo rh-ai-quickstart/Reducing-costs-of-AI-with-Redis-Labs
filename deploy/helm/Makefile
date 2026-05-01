@@ -143,23 +143,13 @@ logs-clone: ## Logs from the git-clone post-install Job pods (if any)
 		echo "No clone job pods found in $(NAMESPACE)."
 
 .PHONY: undeploy
-undeploy: ## helm uninstall + OLM Subscription/OperatorGroup cleanup (same release labels)
-	@echo "Helm uninstall $(RELEASE_NAME) in namespace $(NAMESPACE)..."
-	@helm uninstall $(RELEASE_NAME) --namespace $(NAMESPACE) --wait 2>/dev/null || true
-	@echo "Removing chart-managed OLM objects (if any remain) for release $(RELEASE_NAME)..."
-	@REL="$(RELEASE_NAME)"; \
-		$(KUBECTL) delete subscriptions.operators.coreos.com -n "$(NAMESPACE)" \
-			-l "app.kubernetes.io/instance=$$REL,app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=redis-enterprise-olm" \
-			--ignore-not-found 2>/dev/null || true; \
-		$(KUBECTL) delete operatorgroups.operators.coreos.com -n "$(NAMESPACE)" \
-			-l "app.kubernetes.io/instance=$$REL,app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=redis-enterprise-olm" \
-			--ignore-not-found 2>/dev/null || true; \
-		$(KUBECTL) delete subscriptions.operators.coreos.com -n "$(OPENSHIFT_AI_OPERATOR_NAMESPACE)" \
-			-l "app.kubernetes.io/instance=$$REL,app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=openshift-ai-operator" \
-			--ignore-not-found 2>/dev/null || true; \
-		$(KUBECTL) delete operatorgroups.operators.coreos.com -n "$(OPENSHIFT_AI_OPERATOR_NAMESPACE)" \
-			-l "app.kubernetes.io/instance=$$REL,app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=openshift-ai-operator" \
-			--ignore-not-found 2>/dev/null || true
+undeploy: ## helm uninstall + OLM cleanup (writes debug NDJSON to .cursor/debug-a9baac.log)
+	@echo "Undeploy $(RELEASE_NAME) in $(NAMESPACE) (debug log: repo .cursor/debug-a9baac.log)..."
+	@python3 "$(CHART_DIR)/scripts/undeploy_collect.py" \
+		--helm-release "$(RELEASE_NAME)" \
+		--namespace "$(NAMESPACE)" \
+		--ai-operator-ns "$(OPENSHIFT_AI_OPERATOR_NAMESPACE)" \
+		--kubectl "$(KUBECTL)"
 	@echo "Done. Release namespace was not deleted; workspace PVC may remain (chart policy=keep)."
 	@echo "OLM may take a minute to tear down CSV/operator workloads after Subscription removal."
 	@echo "OpenShift AI namespace $(OPENSHIFT_AI_OPERATOR_NAMESPACE) is left in place (shared cluster scope)."

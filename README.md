@@ -111,6 +111,8 @@ router --o|complex| redis
 
 ## Deploy on OpenShift (Helm)
 
+**Full deployment guide:** [deploy/README.md](deploy/README.md) — chart layout, `make` targets, how **`values.yaml`** and **`values-secret.yaml`** are merged for **`helm upgrade`**, Redis modes, RBAC, and troubleshooting.
+
 This repository includes a **Helm chart** under **`deploy/helm`** (chart name **`redis-notebook`**) that can install:
 
 - a **Jupyter workbench** with a persistent workspace — by default a plain `Deployment` + `Service` + OpenShift `Route` (works on any OpenShift cluster), or a Kubeflow **`Notebook`** CR when `notebook.kind=Notebook` (requires **Red Hat OpenShift AI** / Open Data Hub),
@@ -147,7 +149,7 @@ make -f deploy/helm/Makefile help
 make -f deploy/helm/Makefile deploy
 ```
 
-Redis deployment options, plain **`helm upgrade`** examples, RBAC, and troubleshooting: see **`deploy/README.md`**.
+More **helm upgrade** examples, operator modes, and cleanup: [deploy/README.md](deploy/README.md).
 
 ## Run locally
 
@@ -258,6 +260,8 @@ Finally, we want to provide insight into what managing a deployment like this on
 
 ## Deploy on OpenShift (Helm)
 
+**Full deployment guide:** [deploy/README.md](deploy/README.md) — chart layout, `make` targets, how **`values.yaml`** and **`values-secret.yaml`** are merged for **`helm upgrade`**, Redis modes, RBAC, and troubleshooting.
+
 This repository includes a **Helm chart** under **`deploy/helm`** (chart name **`redis-notebook`**) that can install:
 
 - a **Jupyter workbench** with a persistent workspace — by default a plain `Deployment` + `Service` + OpenShift `Route`, or a Kubeflow **`Notebook`** CR when `notebook.kind=Notebook` (requires **Red Hat OpenShift AI** / Open Data Hub),
@@ -274,7 +278,7 @@ make -f deploy/helm/Makefile help
 make -f deploy/helm/Makefile deploy
 ```
 
-Redis deployment options, plain **`helm upgrade`** examples, RBAC, and troubleshooting: see **`deploy/README.md`**.
+More **helm upgrade** examples, operator modes, and cleanup: [deploy/README.md](deploy/README.md).
 
 ## Run locally
 
