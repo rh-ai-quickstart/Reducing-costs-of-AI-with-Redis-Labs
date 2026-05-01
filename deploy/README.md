@@ -144,6 +144,18 @@ helm upgrade --install redis-notebook ./deploy/helm \
   --wait --timeout 10m
 ```
 
+**External Redis only** (no in-cluster Redis; set a real broker in **`values-secret.yaml`** → **`secrets.redis.url`**):
+
+```bash
+helm upgrade --install redis-notebook ./deploy/helm \
+  --namespace redis-notebook \
+  --values ./deploy/helm/values.yaml \
+  --values ./deploy/helm/values-secret.yaml \
+  --set redis.useRedisEnterpriseOperator=false \
+  --set redis.useOtContainerKitOperator=false \
+  --wait --timeout 10m
+```
+
 If **redis-operator** is already on the cluster, avoid duplicate cluster RBAC: keep **`redis.useOtContainerKitOperator: false`** and use **Redis Enterprise** or **external** Redis, or install only the `redisData` instance from a shared operator (advanced — not split in this chart).
 
 ## What the chart creates
