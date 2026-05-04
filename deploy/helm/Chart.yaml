@@ -2,8 +2,8 @@ apiVersion: v2
 name: redis-notebook
 description: >-
   OpenShift AI Notebook with Redis for the cost-reduction demo: Redis Enterprise Operator
-  (REC + REDB, default), in-chart Redis Stack, OT-CONTAINER-KIT operator + Redis CR, or
-  external Redis URL; git-clones demo notebooks.
+  (REC + REDB, default), OT-CONTAINER-KIT operator + Redis CR, or external Redis URL;
+  git-clones demo notebooks.
 type: application
 version: 0.1.0
 appVersion: "1.0"
