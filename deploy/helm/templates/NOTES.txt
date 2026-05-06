@@ -52,6 +52,19 @@ to bootstrap nodes and provision the database):
 
 Inspect the auto-generated DB credentials (password, port, service_names):
   oc get secret {{ include "redis-notebook.redisEnterpriseSecretName" . }} -n {{ .Release.Namespace }} -o yaml
+{{- if and .Values.redis.enterprise.olm.enabled }}
+
+OLM: this release installs the Redis Enterprise operator Subscription in this namespace.
+Watch the CSV until Succeeded, then rec/redb will reconcile:
+  oc get csv,subscription -n {{ .Release.Namespace }} -w
+If rec/redb never get Status, ensure a CSV exists; if the namespace already had an
+OperatorGroup, set redis.enterprise.olm.createOperatorGroup=false and upgrade.
+{{- else }}
+
+Redis Enterprise OLM is disabled in values. Install redis-enterprise-operator-cert
+from OperatorHub into this namespace (OwnNamespace) before rec/redb reconcile, or
+upgrade with redis.enterprise.olm.enabled=true (Makefile: deploy-redis-enterprise-olm or deploy-all).
+{{- end }}
 {{- end }}
 
 Notebooks land in /opt/app-root/src/demo/notebooks (cloned by the post-install Job).

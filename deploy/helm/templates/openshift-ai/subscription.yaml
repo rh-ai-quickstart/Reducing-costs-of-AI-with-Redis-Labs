@@ -1,0 +1,18 @@
+{{- if .Values.openshiftAI.operator.enabled }}
+{{- if and (not .Values.openshiftAI.operator.skipCapabilityCheck) (not (.Capabilities.APIVersions.Has "operators.coreos.com/v1alpha1")) }}
+{{- fail "openshiftAI.operator.enabled=true requires operators.coreos.com/v1alpha1 (Subscription). Set openshiftAI.operator.skipCapabilityCheck=true only for helm lint/template without cluster API metadata." }}
+{{- end }}
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: {{ .Values.openshiftAI.operator.subscription.name | quote }}
+  namespace: {{ .Values.openshiftAI.operator.namespace | quote }}
+  labels:
+    {{- include "redis-notebook.openshiftAIOperatorLabels" . | nindent 4 }}
+spec:
+  channel: {{ .Values.openshiftAI.operator.subscription.channel | quote }}
+  installPlanApproval: {{ .Values.openshiftAI.operator.subscription.installPlanApproval | quote }}
+  name: {{ .Values.openshiftAI.operator.subscription.name | quote }}
+  source: {{ .Values.openshiftAI.operator.subscription.source | quote }}
+  sourceNamespace: {{ .Values.openshiftAI.operator.subscription.sourceNamespace | quote }}
+{{- end }}

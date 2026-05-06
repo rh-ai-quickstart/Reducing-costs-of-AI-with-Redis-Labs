@@ -101,6 +101,10 @@ spec:
               value: /opt/app-root/src
             - name: CONDARC
               value: /opt/app-root/src/.condarc
+            {{- if .Values.notebook.pipExtraIndexUrl }}
+            - name: PIP_EXTRA_INDEX_URL
+              value: {{ .Values.notebook.pipExtraIndexUrl | quote }}
+            {{- end }}
             - name: MODEL_API_KEY
               value: {{ .Values.secrets.model.apiKey | quote }}
             - name: MODEL_ENDPOINT

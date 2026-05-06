@@ -1,0 +1,13 @@
+{{- if and .Values.openshiftAI.operator.enabled .Values.openshiftAI.operator.createOperatorGroup }}
+{{- if and (not .Values.openshiftAI.operator.skipCapabilityCheck) (not (.Capabilities.APIVersions.Has "operators.coreos.com/v1")) }}
+{{- fail "openshiftAI.operator.enabled=true requires operators.coreos.com/v1 (OperatorGroup). This chart targets OpenShift / OLM-enabled clusters. Set openshiftAI.operator.skipCapabilityCheck=true only for helm lint/template without cluster API metadata." }}
+{{- end }}
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: {{ .Values.openshiftAI.operator.operatorGroupName | quote }}
+  namespace: {{ .Values.openshiftAI.operator.namespace | quote }}
+  labels:
+    {{- include "redis-notebook.openshiftAIOperatorLabels" . | nindent 4 }}
+spec: {}
+{{- end }}
