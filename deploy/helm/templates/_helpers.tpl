@@ -43,42 +43,83 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/*
 Redis connection URL for notebooks:
+- Redis Enterprise: interpolated URL with $(REDIS_PASSWORD) / $(REDIS_PORT) (see redisEnv)
 - OT operator path: Redis CR service (name from redisData.redisStandalone.name or release name)
-- Builtin path: in-chart Service (redis-notebook.redisBuiltinName)
 - Else: secrets.redis.url (external)
 */}}
-{{- define "redis-notebook.redisBuiltinName" -}}
-{{- printf "%s-redis" (include "redis-notebook.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- define "redis-notebook.notebookName" -}}
+{{- printf "%s-notebook" (include "redis-notebook.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{- define "redis-notebook.redisBuiltinLabels" -}}
+{{- define "redis-notebook.notebookLabels" -}}
 {{ include "redis-notebook.labels" . }}
-app.kubernetes.io/component: redis-builtin
+app.kubernetes.io/component: notebook
 {{- end }}
 
-{{- define "redis-notebook.redisBuiltinSelectorLabels" -}}
+{{- define "redis-notebook.notebookSelectorLabels" -}}
 app.kubernetes.io/name: {{ include "redis-notebook.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/component: redis-builtin
-{{- end }}
-
-{{- define "redis-notebook.redisConnectionConfigMapName" -}}
-{{- if .Values.redis.connectionConfigMap.name }}
-{{- .Values.redis.connectionConfigMap.name }}
-{{- else }}
-{{- printf "%s-redis-url" (include "redis-notebook.fullname" .) | trunc 63 | trimSuffix "-" }}
-{{- end }}
+app.kubernetes.io/component: notebook
 {{- end }}
 
 {{- define "redis-notebook.redisUrl" -}}
-{{- if .Values.redis.useOtContainerKitOperator }}
+{{- if .Values.redis.useRedisEnterpriseOperator }}
+{{- $domain := .Values.global.clusterDomain | default "cluster.local" }}
+{{- printf "redis://default:$(REDIS_PASSWORD)@%s.%s.svc.%s:$(REDIS_PORT)" .Values.redis.enterprise.database.name .Release.Namespace $domain }}
+{{- else if .Values.redis.useOtContainerKitOperator }}
 {{- $name := .Values.redisData.redisStandalone.name | default .Release.Name }}
 {{- $domain := .Values.global.clusterDomain | default "cluster.local" }}
 {{- printf "redis://%s.%s.svc.%s:6379" $name .Release.Namespace $domain }}
-{{- else if .Values.redis.builtin.enabled }}
-{{- $domain := .Values.global.clusterDomain | default "cluster.local" }}
-{{- printf "redis://%s.%s.svc.%s:%v" (include "redis-notebook.redisBuiltinName" .) .Release.Namespace $domain .Values.redis.builtin.service.port }}
 {{- else }}
 {{- .Values.secrets.redis.url }}
+{{- end }}
+{{- end }}
+
+{{/*
+Redis Enterprise: name of the auto-generated DB password Secret.
+Defaults to "redb-<database.name>" (the operator's v8.x naming convention) but
+can be overridden via redis.enterprise.database.passwordSecretName.
+*/}}
+{{- define "redis-notebook.redisEnterpriseSecretName" -}}
+{{- if .Values.redis.enterprise.database.passwordSecretName }}
+{{- .Values.redis.enterprise.database.passwordSecretName }}
+{{- else }}
+{{- printf "redb-%s" .Values.redis.enterprise.database.name }}
+{{- end }}
+{{- end }}
+
+{{/*
+Notebook env entries for the chosen Redis backend. For OT-operator / external
+paths this is just REDIS_URL. For Redis Enterprise we additionally inject
+REDIS_PASSWORD + REDIS_PORT from the operator-managed secret and let Kubernetes
+interpolate them into REDIS_URL with $(VAR) syntax.
+*/}}
+{{- define "redis-notebook.openshiftAIOperatorLabels" -}}
+{{ include "redis-notebook.labels" . }}
+app.kubernetes.io/component: openshift-ai-operator
+{{- end }}
+
+{{- define "redis-notebook.redisEnterpriseOLMLabels" -}}
+{{ include "redis-notebook.labels" . }}
+app.kubernetes.io/component: redis-enterprise-olm
+{{- end }}
+
+{{- define "redis-notebook.redisEnv" -}}
+{{- if .Values.redis.useRedisEnterpriseOperator }}
+- name: REDIS_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "redis-notebook.redisEnterpriseSecretName" . }}
+      key: password
+- name: REDIS_PORT
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "redis-notebook.redisEnterpriseSecretName" . }}
+      key: port
+- name: REDIS_URL
+  value: {{ include "redis-notebook.redisUrl" . | quote }}
+{{- else }}
+- name: REDIS_URL
+  value: {{ include "redis-notebook.redisUrl" . | quote }}
 {{- end }}
 {{- end }}

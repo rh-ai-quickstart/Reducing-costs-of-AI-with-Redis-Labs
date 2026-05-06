@@ -1,0 +1,18 @@
+{{- if and .Values.notebook.enabled (eq .Values.notebook.kind "Deployment") }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "redis-notebook.notebookName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "redis-notebook.notebookLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "redis-notebook.notebookSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: notebook
+      port: 8888
+      targetPort: notebook
+      protocol: TCP
+{{- end }}

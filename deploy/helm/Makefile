@@ -1,8 +1,9 @@
 # OpenShift AI notebook Helm chart — thin wrapper around helm/oc
-#
-# Usage (from anywhere):
+# 
+# Usage:
+#   make -f deploy/helm/Makefile help
 #   make -f deploy/helm/Makefile deploy
-# Or:
+# Or from this directory:
 #   cd deploy/helm && make deploy
 
 # Strip trailing slash from $(dir ...) so paths like $(CHART_DIR)/values.yaml stay clean.
@@ -13,7 +14,14 @@ VALUES_SECRET_FILE ?= $(CHART_DIR)/values-secret.yaml
 
 NAMESPACE ?= redis-notebook
 RELEASE_NAME ?= redis-notebook
+# Label selectors for chart-managed OLM objects (must match chart templates).
+REDIS_OLM_SELECTOR := app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=redis-enterprise-olm
+AI_OLM_SELECTOR := app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=openshift-ai-operator
+# Used by undeploy to remove chart-managed OpenShift AI OLM objects (must match values.yaml openshiftAI.operator.namespace).
+OPENSHIFT_AI_OPERATOR_NAMESPACE ?= redhat-ods-operator
 TIMEOUT ?= 10m
+# Appended to helm upgrade|template (e.g. make deploy-all sets Redis OLM + OpenShift AI).
+HELM_EXTRA_ARGS ?=
 
 KUBECTL := $(shell command -v oc 2>/dev/null)
 ifndef KUBECTL
@@ -30,6 +38,7 @@ help: ## Show targets and current settings
 	@echo "  CHART_DIR=$(CHART_DIR)"
 	@echo "  VALUES_FILE=$(VALUES_FILE)"
 	@echo "  VALUES_SECRET_FILE=$(VALUES_SECRET_FILE)  (required for deploy)"
+	@echo "  HELM_EXTRA_ARGS=$(HELM_EXTRA_ARGS)"
 	@echo ""
 	@awk 'BEGIN {FS = ":.*##"; printf "Targets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
@@ -38,12 +47,25 @@ deps: ## helm dependency update (OT subcharts; only needed when redis.useOtConta
 	helm dependency update $(CHART_DIR)
 
 .PHONY: lint
-lint: ## helm lint
-	helm lint $(CHART_DIR)
+lint: ## helm lint (skips REC/REDB CRD + OLM preflight; lint has no --api-versions)
+	helm lint $(CHART_DIR) --set redis.skipCapabilityCheck=true --set redis.enterprise.olm.skipCapabilityCheck=true
 
 .PHONY: template
-template: ## Render manifests to stdout (same namespace as deploy)
-	helm template $(RELEASE_NAME) $(CHART_DIR) --namespace $(NAMESPACE)
+template: ## Render manifests to stdout (adds values-secret when file exists; no validate-secrets)
+	@if [ -f "$(VALUES_SECRET_FILE)" ]; then \
+		helm template $(RELEASE_NAME) $(CHART_DIR) --namespace $(NAMESPACE) \
+			--values $(VALUES_FILE) \
+			--values $(VALUES_SECRET_FILE) \
+			--set redis.skipCapabilityCheck=true \
+			--set redis.enterprise.olm.skipCapabilityCheck=true \
+			$(HELM_EXTRA_ARGS); \
+	else \
+		helm template $(RELEASE_NAME) $(CHART_DIR) --namespace $(NAMESPACE) \
+			--values $(VALUES_FILE) \
+			--set redis.skipCapabilityCheck=true \
+			--set redis.enterprise.olm.skipCapabilityCheck=true \
+			$(HELM_EXTRA_ARGS); \
+	fi
 
 .PHONY: create-namespace
 create-namespace: ## Create project/namespace
@@ -74,17 +96,49 @@ deploy: validate-secrets deps create-namespace ## validate secrets + helm upgrad
 		--values $(VALUES_FILE) \
 		--values $(VALUES_SECRET_FILE) \
 		--wait \
-		--timeout $(TIMEOUT)
+		--timeout $(TIMEOUT) \
+		$(HELM_EXTRA_ARGS)
 	@echo "Done. Pods: $(KUBECTL) get pods -n $(NAMESPACE)"
 
+.PHONY: deploy-all
+deploy-all: ## deploy + Redis Enterprise OLM + OpenShift AI OLM (longer timeout)
+	@echo "Deploying Redis Enterprise OLM + OpenShift AI OLM..."
+	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
+		TIMEOUT=25m \
+		HELM_EXTRA_ARGS='--set redis.enterprise.olm.enabled=true --set openshiftAI.operator.enabled=true'
+
+
+.PHONY: deploy-redis-enterprise-olm
+deploy-redis-enterprise-olm: ## deploy + Redis Enterprise OLM only (Subscription/OperatorGroup; longer timeout)
+	@echo "Deploying Redis Enterprise OLM..."
+	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
+		TIMEOUT=25m \
+		HELM_EXTRA_ARGS='--set redis.enterprise.olm.enabled=true'
+
+.PHONY: deploy-openshift-ai-operator
+deploy-openshift-ai-operator: ## deploy + OpenShift AI OLM only (rhods-operator in openshiftAI.operator.namespace; longer timeout)
+	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
+		TIMEOUT=25m \
+		HELM_EXTRA_ARGS='--set openshiftAI.operator.enabled=true'
+
+.PHONY: deploy-without-redis-enterprise-olm
+deploy-without-redis-enterprise-olm: ## deploy with redis.enterprise.olm.enabled=false (same as default values)
+	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
+		HELM_EXTRA_ARGS='--set redis.enterprise.olm.enabled=false'
+
 .PHONY: logs-clone
-logs-clone: ## Logs from the notebook git-sync init container (same pod as the workbench; no separate Job)
-	@POD=$$($(KUBECTL) get pods -n $(NAMESPACE) --no-headers -o name 2>/dev/null | grep -- '-notebook-' | head -1 | sed 's|^pod/||'); \
-	if [ -z "$$POD" ]; then echo "No notebook pod name containing -notebook- in $(NAMESPACE)."; exit 1; fi; \
-	$(KUBECTL) logs -n $(NAMESPACE) "$$POD" -c git-sync-demo --tail=200 2>/dev/null || \
-		$(KUBECTL) logs -n $(NAMESPACE) "$$POD" --tail=200 --all-containers=true
+logs-clone: ## Logs from the git-clone post-install Job pods (if any)
+	@$(KUBECTL) logs -n $(NAMESPACE) -l app.kubernetes.io/component=notebook-setup --tail=200 --all-containers=true 2>/dev/null || \
+		echo "No clone job pods found in $(NAMESPACE)."
 
 .PHONY: undeploy
-undeploy: ## helm uninstall (namespace left in place)
-	helm uninstall $(RELEASE_NAME) --namespace $(NAMESPACE) 2>/dev/null || true
-	@echo "Release removed (PVC may remain if policy=keep)."
+undeploy: ## helm uninstall --wait + label-based Subscription/OperatorGroup cleanup (Redis OLM + OpenShift AI)
+	@echo "Undeploy $(RELEASE_NAME) in $(NAMESPACE)..."
+	@helm uninstall "$(RELEASE_NAME)" --namespace "$(NAMESPACE)" --wait || true
+	@$(KUBECTL) delete subscriptions.operators.coreos.com -n "$(NAMESPACE)" -l "$(REDIS_OLM_SELECTOR)" --ignore-not-found
+	@$(KUBECTL) delete operatorgroups.operators.coreos.com -n "$(NAMESPACE)" -l "$(REDIS_OLM_SELECTOR)" --ignore-not-found
+	@$(KUBECTL) delete subscriptions.operators.coreos.com -n "$(OPENSHIFT_AI_OPERATOR_NAMESPACE)" -l "$(AI_OLM_SELECTOR)" --ignore-not-found
+	@$(KUBECTL) delete operatorgroups.operators.coreos.com -n "$(OPENSHIFT_AI_OPERATOR_NAMESPACE)" -l "$(AI_OLM_SELECTOR)" --ignore-not-found
+	@echo "Done. Release namespace was not deleted; workspace PVC may remain (chart policy=keep)."
+	@echo "OLM may take a minute to tear down CSV/operator workloads after Subscription removal."
+	@echo "OpenShift AI namespace $(OPENSHIFT_AI_OPERATOR_NAMESPACE) is left in place (shared cluster scope)."
