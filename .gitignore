@@ -4,3 +4,4 @@ redisvl_examples
 .venv
 
 values-secret.yaml
+deploy/helm/values-secret.yaml
