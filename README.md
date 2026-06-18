@@ -8,13 +8,14 @@ Reduce LLM costs with intelligent routing and caching with Redis Enterprise&reg;
 - [Architecture](#architecture)
 - [Production view](#production-view)
 - [Requirements](#requirements)
-  - [Hardware requirements](#hardware-requirements)
-  - [Software requirements](#software-requirements)
+  - [Minimum hardware requirements](#minimum-hardware-requirements)
+  - [Minimum software requirements](#minimum-software-requirements)
 - [Installation](#installation)
   - [Deploy on OpenShift (Helm)](#deploy-on-openshift-helm)
   - [Uninstall from OpenShift](#uninstall-from-openshift)
   - [Run locally](#run-locally)
   - [Uninstall local deployment](#uninstall-local-deployment)
+- [References](#references)
 - [Tags](#tags)
 
 ## Overview
