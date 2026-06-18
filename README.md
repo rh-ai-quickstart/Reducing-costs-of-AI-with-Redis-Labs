@@ -1,6 +1,22 @@
-# Create a scalable and cost-efficient insurance agent with OpenShift AI and Redis
+# Reduce insurance agent LLM costs with OpenShift AI and Redis
 
-When starting out with AI systems, it's easy to lose track of the use case and miss out on pragmatic opportunities for optimization. Moreover, sound software architecture decisions still go a long way in making sure that what you're building doesn't get trapped in demo purgatory. This quickstart guide aims to focus on all the connective tissue it takes to build an effective AI app that you can feel confident running on the secure OpenShift AI platform, with the performance and reliability of Redis Enterprise.
+Reduce LLM costs with intelligent routing and caching with Redis Enterprise&reg; and Red Hat OpenShift AI&reg;.
+
+## Table of contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Production view](#production-view)
+- [Requirements](#requirements)
+  - [Minimum hardware requirements](#minimum-hardware-requirements)
+  - [Minimum software requirements](#minimum-software-requirements)
+- [Installation](#installation)
+  - [Deploy on OpenShift (Helm)](#deploy-on-openshift-helm)
+  - [Uninstall from OpenShift](#uninstall-from-openshift)
+  - [Run locally](#run-locally)
+  - [Uninstall local deployment](#uninstall-local-deployment)
+- [References](#references)
+- [Tags](#tags)
 
 ## Overview
 
@@ -8,7 +24,7 @@ Let's imagine we are tasked with building an insurance claims assistant. The bus
 
 From our interaction data, we know that not all input queries require the latest reasoning model to answer, and that there are likely many FAQ-type questions for which we don't need to constantly regenerate answers.
 
-From our interaction data, we know that not all input queries require the latest reasoning model to answer and that there are likely many FAQ type questions for which we don't need to constantly regenerate answers.
+## Architecture
 
 ```mermaid
 flowchart TB
@@ -26,7 +42,7 @@ flowchart TB
     router -->|complex| agent_deploy[Agent]
 ```
 
-The router in this diagram refers to the `SemanticRouter` made available from the [Redis vector library](https://redis.io/docs/latest/integrate/redisvl/), which uses a combination of vector-enabled search techniques to perform classification on the input query. Invoking a semantic router in this way runs in milliseconds and requires no LLM tokens for a quick first-cut intent detection. In this example, our three hypothetical routes will be `blocked`, `simple`, and `complex`, wherein simple or vague requests (like "hello" or "I need help") go to a cheaper non-reasoning LLM, more complex queries (like "I was curious if policy xyz applies in my state") go to the full-featured agent, and off-topic requests (like "answer my python coding question") get evicted.
+The router in the above diagram refers to the `SemanticRouter` made available from the [Redis vector library](https://redis.io/docs/latest/integrate/redisvl/), which uses a combination of vector-enabled search techniques to perform classification on the input query. Invoking a semantic router in this way runs in milliseconds and requires no LLM tokens for a quick first-cut intent detection. In this example, our three hypothetical routes will be `blocked`, `simple`, and `complex`, wherein simple or vague requests (like "hello" or "I need help") go to a cheaper non-reasoning LLM, more complex queries (like "I was curious if policy xyz applies in my state") go to the full-featured agent, and off-topic requests (like "answer my python coding question") get evicted.
 
 In a similar vein, we will make use of the `SemanticCache` from the Redis vector library to store previously generated and approved responses from the agent to reduce repeat generations.
 
@@ -68,7 +84,9 @@ In `demo/notebooks/`, `01_agent.ipynb` and `02_router_cache.ipynb` cover setting
 
 ## Production view
 
-Finally, we want to provide insight into what managing a deployment like this on OpenShift would look like from a production standpoint, where a system like this has to be able to handle many concurrent requests. Notebook `03_async_work_queue.ipynb` shows how you can easily distribute your work across many horizontally scalable workers. In practice, this would enable an architecture with multiple workers backed by a distributed Redis layer for pods to retrieve semantic and episodic memory, as well as cached data.
+Finally, we want to provide insight into what managing a deployment like this on Red Hat OpenShift&reg; would look like from a production standpoint, where a system like this has to be able to handle many concurrent requests. Notebook `03_async_work_queue.ipynb` shows how you can easily distribute your work across many horizontally scalable workers. In practice, this would enable an architecture with multiple workers backed by a distributed Redis layer for pods to retrieve semantic and episodic memory, as well as cached data.
+
+The following diagram shows a scalable solution where simple requests are sent to a generic model and complex requests are routed to the cache. 
 
 ```mermaid
 flowchart LR
@@ -109,156 +127,32 @@ router --o|complex| redis
 
 ```
 
-## Deploy on OpenShift (Helm)
+## Requirements
 
-**Full deployment guide:** [deploy/README.md](deploy/README.md) — chart layout, `make` targets, how **`values.yaml`** and **`values-secret.yaml`** are merged for **`helm upgrade`**, Redis modes, RBAC, and troubleshooting.
+### Minimum hardware requirements
 
-This repository includes a **Helm chart** under **`deploy/helm`** (chart name **`redis-notebook`**) that can install:
+| Node Type     | Qty | vCPU | Memory (GB) |
+|---------------|-----|------|-------------|
+| Control Plane | 3   | 8    | 16          |
+| Worker        | 2   | 8    | 32          |
 
-- a **Jupyter workbench** with a persistent workspace — by default a plain `Deployment` + `Service` + OpenShift `Route` (works on any OpenShift cluster), or a Kubeflow **`Notebook`** CR when `notebook.kind=Notebook` (requires **Red Hat OpenShift AI** / Open Data Hub),
-- a **post-install Job** that clones this repo and copies **`demo/`** into the workspace,
-- **Redis** via the **Redis Enterprise Operator** by default (`RedisEnterpriseCluster` + `RedisEnterpriseDatabase`). Default **`make deploy`** does not install the operator via OLM—install **redis-enterprise-operator-cert** from OperatorHub into the release namespace first, or run **`make -f deploy/helm/Makefile deploy-all`**. Alternatives: the **OT-CONTAINER-KIT** operator + Redis CR, or an **external** `REDIS_URL` (`secrets.redis.url` when both operator flags are off).
+> [!NOTE]
+> A GPU is not required for this quickstart
 
-**Cluster prerequisites:** the default `notebook.kind=Deployment` mode has no notebook-controller dependency — `oc` + `helm` against any OpenShift cluster is enough. Set `notebook.kind=Notebook` only if **RHOAI** (or upstream **ODH**) is installed; the chart fails fast with a friendly error otherwise. Quick check: `oc get crd notebooks.kubeflow.org`. The default **Redis Enterprise** path additionally requires the **redis-enterprise-operator-cert** OperatorHub package installed in the release namespace (`OwnNamespace` install mode); check with `oc get crd redisenterpriseclusters.app.redislabs.com`.
+### Minimum software requirements
 
-**Before `make deploy`:** create **`deploy/helm/values-secret.yaml`** (gitignored) from **`deploy/helm/values-secret.example.yaml`** and set real values for `secrets.model.apiKey` and the other `secrets.model.*` keys. **`make deploy`** runs **`check-secrets`** (file exists) and **`validate-secrets`** (merged values must not be null/empty for required fields; requires **PyYAML**: `python3 -m pip install pyyaml`).
+This quickstart was tested with the following software versions:
 
-The secrets YAML will look like this:
-```bash
-secrets:
-  model:
-    apiKey: "sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    endpoint: "https://api.openai.com"
-    # Optional overrides (empty = use endpoint / apiKey for both):
-    # simpleEndpoint: "https://..."
-    # complexEndpoint: "https://..."
-    # simpleApiKey: ""
-    # complexApiKey: ""
-    complexModelName: "gpt-5"
-    simpleModelName: "gpt-4.1"
-  redis:
-    url: "redis://localhost:6379"
+| Software                           | Version  |
+| ---------------------------------- |:---------|
+| OpenShift                          | 4.20+    |
+| OpenShift AI                       | 3.4+     |
+| Redis Enterprise                   | 7        |
+| helm                               | 3.17+    |
 
-```
+## Installation
 
-```bash
-cp deploy/helm/values-secret.example.yaml deploy/helm/values-secret.yaml
-# Edit deploy/helm/values-secret.yaml
-
-make -f deploy/helm/Makefile help
-make -f deploy/helm/Makefile deploy
-```
-
-More **helm upgrade** examples, operator modes, and cleanup: [deploy/README.md](deploy/README.md).
-
-## Run locally
-
-The `demo/` folder contains everything needed to exercise the router + cache + agent pattern against a local Redis instance and an OpenAI-compatible API.
-
-**Prerequisites**
-
-- Python 3.11+ (3.12 is fine)
-- **Redis** reachable at `REDIS_URL` (default `redis://localhost:6379`). Use **Redis Stack** if you run **`02_router_cache.ipynb`** (the semantic router / cache needs search modules). **`01_agent.ipynb`** LangGraph multi-turn memory needs **`langgraph-checkpoint-redis`** (see `demo/scripts/requirements.txt`).
-- An API key for your LLM provider (OpenAI by default; override **`MODEL_ENDPOINT`** for OpenShift AI / vLLM / Azure OpenAI–compatible hosts).
-
-**1. Install dependencies**
-
-```bash
-cd Reducing-costs-of-AI-with-Redis-Labs
-python -m venv .venv && source .venv/bin/activate
-pip install -r demo/scripts/requirements.txt --extra-index-url https://pypi.org/simple
-```
-
-**2. Configure the environment**
-
-Create a `.env` file at the repository root:
-
-```dotenv
-MODEL_API_KEY=sk-...
-MODEL_ENDPOINT=https://api.openai.com
-SIMPLE_MODEL_NAME=gpt-4.1
-COMPLEX_MODEL_NAME=gpt-5
-REDIS_URL=redis://localhost:6379
-```
-
-**3. Run the notebooks**
-
-```bash
-jupyter lab demo/notebooks
-```
-
-Run from the **`demo/notebooks`** directory (or ensure that is the notebook working directory) so paths to `data/` and repo-root `.env` resolve as in the notebooks.
-
-| Notebook | What it shows |
-|---|---|
-| `01_agent.ipynb` | The complex-path LangGraph agent with FAQ search, policy lookup, and Redis-backed multi-turn memory. |
-| `02_router_cache.ipynb` | Wraps the agent with a `SemanticRouter` (blocked / simple / complex) and a `SemanticCache` populated only from 👍 user feedback. |
-
-`01_agent.ipynb` builds the agent inline so every step is explicit; `02_router_cache.ipynb` imports the re-usable version of that same build from `demo/shared/insurance_bot.py`.
-
-### Architecture diagrams
-
-```mermaid
-flowchart TB
-    subgraph simple_model[Simple deployment]
-      simple_deployment[model]
-    end
-    subgraph agent_deploy[agent]
-      agent_cache[cache]
-      agent[agent]
-    end
-
-    user -->router{router}
-    router -->|blocked| exit
-    router -->|simple| simple_model[Simple model deployment]
-    router -->|complex| agent_deploy[Agent]
-```
-
-The router in this diagram refers to the `SemanticRouter` made available from the [redis vector library](https://redis.io/docs/latest/integrate/redisvl/) which uses a combination of vector enabled search techniques to perform classification on the input query. Invoking a semantic router in this way, runs in milliseconds and requires no LLM tokens for quick first cut intent detection. In this example, our three hypothetical routes will be `blocked`, `simple`, and `complex` wherein simple or vague requests (like "hello" or "I need help") go to a cheaper non-reasoning LLM and more complex queries (like "I was curious if policy xyz applies in my state") go to the full featured agent and off topic request (like "answer my python coding question") get evicted.
-
-In a similar vein we will make use of the `SemanticCache` from the redis vector library to store previously generated and approved responses from the agent to reduce on repeat generations.
-
-The final flow is encapsulated in the following sequence diagram:
-
-```mermaid
-sequenceDiagram
-  participant user
-  participant service as service layer
-  participant embedding as embedding model
-  participant redis
-  participant simple as simple model
-  participant complex as agent
-
-  user ->> service: input query
-  service ->> embedding: embed user input
-  embedding -->> service:
-  service ->> redis: get route match
-  alt route_match==blocked
-    service->>service: off topic request exit
-  else route_match==simple
-    service-->>simple: route to cheaper model for basic
-  else route_match==complex
-    service->>redis: check cache (for expensive operation)
-    service->>complex: send to agent
-    complex-->>service:
-  end
-
-  service ->> user: return answer
-  user ->> service: thumbs up / thumbs down
-  alt user_feedback==thumbs up
-    service ->> redis: save to cache with ttl
-  else
-    service ->> service: end
-  end
-```
-
-In `demo/notebooks/`, `01_agent.ipynb` and `02_router_cache.ipynb` cover setting up this flow. The reusable agent build used by notebook 02 lives in `demo/shared/insurance_bot.py`.
-
-## Production view
-
-Finally, we want to provide insight into what managing a deployment like this on OpenShift would look like from a production standpoint where a system like this will have to be able to handle many concurrent requests. Notebook `03_async_work_queue.ipynb` shows how you can easily distribute your work between many horizontally scalable workers. In practice this would enable an architecture with multiple workers backed by a shared Redis queue in production.
-
-## Deploy on OpenShift (Helm)
+### Deploy on OpenShift (Helm)
 
 **Full deployment guide:** [deploy/README.md](deploy/README.md) — chart layout, `make` targets, how **`values.yaml`** and **`values-secret.yaml`** are merged for **`helm upgrade`**, Redis modes, RBAC, and troubleshooting.
 
@@ -277,14 +171,19 @@ cp deploy/helm/values-secret.example.yaml deploy/helm/values-secret.yaml
 make -f deploy/helm/Makefile help
 make -f deploy/helm/Makefile deploy
 ```
+### Uninstall from OpenShift
+
+```
+<command to uninstall>
+```
 
 More **helm upgrade** examples, operator modes, and cleanup: [deploy/README.md](deploy/README.md).
 
-## Run locally
+### Run locally
 
 The `demo/` folder contains everything needed to exercise the router + cache + agent pattern against a local Redis instance and an OpenAI-compatible API.
 
-**Prereqs**
+#### Requirements
 
 - Python 3.11+ (3.12 is fine)
 - **Redis** reachable at `REDIS_URL` (default `redis://localhost:6379`). Use **Redis Stack** if you run **`02_router_cache.ipynb`** (semantic router / cache need search modules). **`01_agent.ipynb`** LangGraph multi-turn memory needs **`langgraph-checkpoint-redis`** (see `demo/scripts/requirements.txt`).
@@ -324,3 +223,21 @@ Run from the **`demo/notebooks`** directory (or ensure that is the notebook work
 | `01_agent.ipynb` | Step-by-step LangGraph ReAct agent (FAQ, policy tools, Redis-backed checkpointer). |
 | `02_router_cache.ipynb` | Imports `demo/shared/insurance_bot.py`: semantic router, thumbs-up–only semantic cache, agent with Redis memory. |
 | `03_async_work_queue.ipynb` | Uses [redis-agent-kit](https://pypi.org/project/redis-agent-kit/) for an async Redis-backed work queue across workers. |
+
+### Uninstall local deployment
+
+```
+<command to uninstall>
+```
+## References
+
+* [Redis documentation](https://redis.io/docs/latest/)
+* [Red Hat OpenShift AI documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed)
+* [Red Hat OpenShift documentation](https://docs.redhat.com/en/documentation/openshift_container_platform)
+
+## Tags
+
+* **Industry:** Insurance
+* **Product:** Red Hat OpenShift AI
+* **Use Case:** LLM cost optimization
+* **Partner**: Redis Labs
