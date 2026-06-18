@@ -1,6 +1,6 @@
-# Reducing insurance agent LLM costs with OpenShift AI and Redis
+# Reduce insurance agent LLM costs with OpenShift AI and Redis
 
-Optimize LLM costs with intelligent routing and caching with Redis Labs&reg; and Red Hat OpenShift AI&reg;.
+Reduce LLM costs with intelligent routing and caching with Redis Enterprise&reg; and Red Hat OpenShift AI&reg;.
 
 ## Table of contents
 
@@ -128,11 +128,26 @@ router --o|complex| redis
 
 ## Requirements
 
-### Hardware requirements
+### Minimum hardware requirements
 
+| Node Type     | Qty | vCPU | Memory (GB) |
+|---------------|-----|------|-------------|
+| Control Plane | 3   | 8    | 16          |
+| Worker        | 2   | 8    | 32          |
 
-### Software requirements
+> [!NOTE]
+> A GPU is not required for this quickstart
 
+### Minimum software requirements
+
+This quickstart was tested with the following software versions:
+
+| Software                           | Version  |
+| ---------------------------------- |:---------|
+| OpenShift                          | 4.20+    |
+| OpenShift AI                       | 3.4+     |
+| Redis Enterprise                   | 7        |
+| helm                               | 3.17+    |
 
 ## Installation
 
@@ -213,6 +228,11 @@ Run from the **`demo/notebooks`** directory (or ensure that is the notebook work
 ```
 <command to uninstall>
 ```
+## References
+
+* [Redis documentation](https://redis.io/docs/latest/)
+* [Red Hat OpenShift AI documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed)
+* [Red Hat OpenShift documentation](https://docs.redhat.com/en/documentation/openshift_container_platform)
 
 ## Tags
 
