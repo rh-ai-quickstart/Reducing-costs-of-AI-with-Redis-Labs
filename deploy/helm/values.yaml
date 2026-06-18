@@ -10,8 +10,7 @@ global:
 # 1) Redis Enterprise Operator (REC + REDB) — DEFAULT: redis.useRedisEnterpriseOperator: true.
 #    OLM for redis-enterprise-operator-cert is OFF by default (redis.enterprise.olm.enabled).
 #    Install the operator from OperatorHub into this namespace first, or use
-#    `make -f deploy/helm/Makefile deploy-redis-enterprise-olm` (Redis OLM only) or
-#    `make ... deploy-all` (Redis OLM + OpenShift AI OLM).
+#    `make ... deploy-all` (Redis Enterprise OLM).
 #    The chart always creates RedisEnterpriseCluster + RedisEnterpriseDatabase CRs when
 #    useRedisEnterpriseOperator is true and wires the notebook to the operator-generated
 #    DB password Secret once the operator reconciles them.
@@ -115,7 +114,7 @@ notebook:
   #   "Notebook"             — Kubeflow `kubeflow.org/v1` Notebook CR. Requires
   #     RHOAI (or upstream ODH notebook-controller) and gives you the dashboard
   #     workbench experience with OAuth-proxy auth injected by the controller.
-  kind: "Deployment"
+  kind: "Notebook"
 
   image:
     # Public ODH minimal CPU workbench (Py 3.12): works on any OpenShift cluster
@@ -161,6 +160,8 @@ notebook:
 
   gitSync:
     enabled: true
+    # Replace demo/ on pod restart when true (default: skip if demo/notebooks exists).
+    forceRefresh: false
     repo: "https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs.git"
     branch: "main"
     image: "alpine/git:latest"

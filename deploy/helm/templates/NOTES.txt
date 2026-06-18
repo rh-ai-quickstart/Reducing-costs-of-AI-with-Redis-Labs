@@ -63,7 +63,7 @@ OperatorGroup, set redis.enterprise.olm.createOperatorGroup=false and upgrade.
 
 Redis Enterprise OLM is disabled in values. Install redis-enterprise-operator-cert
 from OperatorHub into this namespace (OwnNamespace) before rec/redb reconcile, or
-upgrade with redis.enterprise.olm.enabled=true (Makefile: deploy-redis-enterprise-olm or deploy-all).
+upgrade with redis.enterprise.olm.enabled=true (Makefile: deploy-all).
 {{- end }}
 {{- end }}
 
