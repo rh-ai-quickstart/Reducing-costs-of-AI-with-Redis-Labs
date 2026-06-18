@@ -105,25 +105,6 @@ serviceAccount:
 rbac:
   create: true
 
-
-# Optional OLM install for Red Hat OpenShift AI (rhods-operator). Default off; use
-# `make deploy-all` to enable together with Redis Enterprise OLM. Templates under
-# templates/openshift-ai/ require this block to exist (merge-safe with values-secret).
-openshiftAI:
-  operator:
-    enabled: false
-    namespace: redhat-ods-operator
-    createNamespace: true
-    createOperatorGroup: true
-    operatorGroupName: openshift-ai-operator-group
-    skipCapabilityCheck: false
-    subscription:
-      name: rhods-operator
-      channel: fast
-      installPlanApproval: Automatic
-      source: redhat-operators
-      sourceNamespace: openshift-marketplace
-
 notebook:
   enabled: true
   username: "admin"
