@@ -10,7 +10,6 @@ metadata:
     opendatahub.io/dashboard: "true"
   annotations:
     openshift.io/display-name: "Redis AI cost reduction — notebook workspace"
-    helm.sh/resource-policy: keep
     helm.sh/hook-weight: "-5"
 spec:
   accessModes:

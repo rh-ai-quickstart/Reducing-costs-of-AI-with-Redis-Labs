@@ -104,6 +104,62 @@ app.kubernetes.io/component: openshift-ai-operator
 app.kubernetes.io/component: redis-enterprise-olm
 {{- end }}
 
+{{/*
+Init container: clone notebook.gitSync.repo and copy demo/ into the workspace PVC.
+Runs inside the notebook pod so ReadWriteOnce volumes are never shared with a separate Job.
+*/}}
+{{- define "redis-notebook.gitSyncInitContainer" -}}
+- name: git-sync-demo
+  image: {{ .Values.notebook.gitSync.image }}
+  imagePullPolicy: IfNotPresent
+  env:
+    - name: GIT_SYNC_FORCE
+      value: {{ if .Values.notebook.gitSync.forceRefresh }}"true"{{ else }}"false"{{ end }}
+  command:
+    - sh
+    - -c
+    - |
+      set -e
+      cd /opt/app-root/src
+      if [ "$GIT_SYNC_FORCE" != "true" ] && [ -d demo/notebooks ]; then
+        echo "demo/notebooks already present; skipping git sync (set notebook.gitSync.forceRefresh=true to replace)."
+        exit 0
+      fi
+      if [ "$GIT_SYNC_FORCE" = "true" ] && [ -d demo ]; then
+        echo "Removing existing demo folder (forceRefresh)..."
+        rm -rf demo
+      fi
+      echo "Cloning repository: {{ .Values.notebook.gitSync.repo }}"
+      RETRIES=5
+      COUNT=0
+      until git clone --depth 1 {{ if .Values.notebook.gitSync.branch }}--branch {{ .Values.notebook.gitSync.branch }}{{ end }} {{ .Values.notebook.gitSync.repo }} /tmp/repo; do
+        COUNT=$((COUNT+1))
+        if [ $COUNT -ge $RETRIES ]; then
+          echo "Failed to clone repository after $RETRIES attempts"
+          exit 1
+        fi
+        echo "Clone failed, retrying in 10 seconds... (attempt $COUNT/$RETRIES)"
+        sleep 10
+      done
+      echo "Copying demo folder to workspace..."
+      if [ -d "/tmp/repo/demo" ]; then
+        cp -rf /tmp/repo/demo . || { echo "Error: Failed to copy demo folder"; exit 1; }
+        if [ ! -d "demo/notebooks" ]; then
+          echo "Error: demo/notebooks missing after copy"
+          exit 1
+        fi
+        echo "Demo folder successfully copied to workspace"
+      else
+        echo "Error: No demo directory found in repository"
+        exit 1
+      fi
+      rm -rf /tmp/repo
+      echo "Git sync completed successfully"
+  volumeMounts:
+    - name: workspace
+      mountPath: /opt/app-root/src
+{{- end }}
+
 {{- define "redis-notebook.redisEnv" -}}
 {{- if .Values.redis.useRedisEnterpriseOperator }}
 - name: REDIS_PASSWORD

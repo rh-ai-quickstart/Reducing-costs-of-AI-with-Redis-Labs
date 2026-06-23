@@ -19,8 +19,12 @@ spec:
         {{- include "redis-notebook.notebookSelectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "redis-notebook.serviceAccountName" . }}
-      {{- if .Values.redis.useRedisEnterpriseOperator }}
+      {{- if or .Values.notebook.gitSync.enabled .Values.redis.useRedisEnterpriseOperator }}
       initContainers:
+{{- if .Values.notebook.gitSync.enabled }}
+{{ include "redis-notebook.gitSyncInitContainer" . | nindent 8 }}
+{{- end }}
+{{- if .Values.redis.useRedisEnterpriseOperator }}
         - name: wait-redis-db-secret
           image: registry.access.redhat.com/ubi9/ubi-minimal:latest
           imagePullPolicy: IfNotPresent
@@ -45,6 +49,7 @@ spec:
             - name: redis-enterprise-db-secret-wait
               mountPath: /redis-secret
               readOnly: true
+{{- end }}
       {{- end }}
       containers:
         - name: notebook

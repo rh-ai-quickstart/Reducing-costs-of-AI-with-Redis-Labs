@@ -17,6 +17,12 @@ RELEASE_NAME ?= redis-notebook
 # Label selectors for chart-managed OLM objects (must match chart templates).
 REDIS_OLM_SELECTOR := app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=redis-enterprise-olm
 AI_OLM_SELECTOR := app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=openshift-ai-operator
+# Redis Enterprise names for undeploy (defaults match deploy/helm/values.yaml).
+REDIS_ENTERPRISE_CLUSTER_NAME ?= rec
+REDIS_ENTERPRISE_DATABASE_NAME ?= redb
+REDIS_ENTERPRISE_SUBSCRIPTION_NAME ?= redis-enterprise-operator-cert
+REDIS_ENTERPRISE_OPERATOR_GROUP_NAME ?= redis-enterprise-operator-group
+REDIS_UNDEPLOY_WAIT ?= 120
 # Used by undeploy to remove chart-managed OpenShift AI OLM objects (must match values.yaml openshiftAI.operator.namespace).
 OPENSHIFT_AI_OPERATOR_NAMESPACE ?= redhat-ods-operator
 TIMEOUT ?= 10m
@@ -101,25 +107,11 @@ deploy: validate-secrets deps create-namespace ## validate secrets + helm upgrad
 	@echo "Done. Pods: $(KUBECTL) get pods -n $(NAMESPACE)"
 
 .PHONY: deploy-all
-deploy-all: ## deploy + Redis Enterprise OLM + OpenShift AI OLM (longer timeout)
+deploy-all: ## deploy + Redis Enterprise OLM
 	@echo "Deploying Redis Enterprise OLM + OpenShift AI OLM..."
 	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
 		TIMEOUT=25m \
-		HELM_EXTRA_ARGS='--set redis.enterprise.olm.enabled=true --set openshiftAI.operator.enabled=true'
-
-
-.PHONY: deploy-redis-enterprise-olm
-deploy-redis-enterprise-olm: ## deploy + Redis Enterprise OLM only (Subscription/OperatorGroup; longer timeout)
-	@echo "Deploying Redis Enterprise OLM..."
-	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
-		TIMEOUT=25m \
 		HELM_EXTRA_ARGS='--set redis.enterprise.olm.enabled=true'
-
-.PHONY: deploy-openshift-ai-operator
-deploy-openshift-ai-operator: ## deploy + OpenShift AI OLM only (rhods-operator in openshiftAI.operator.namespace; longer timeout)
-	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
-		TIMEOUT=25m \
-		HELM_EXTRA_ARGS='--set openshiftAI.operator.enabled=true'
 
 .PHONY: deploy-without-redis-enterprise-olm
 deploy-without-redis-enterprise-olm: ## deploy with redis.enterprise.olm.enabled=false (same as default values)
@@ -127,18 +119,51 @@ deploy-without-redis-enterprise-olm: ## deploy with redis.enterprise.olm.enabled
 		HELM_EXTRA_ARGS='--set redis.enterprise.olm.enabled=false'
 
 .PHONY: logs-clone
-logs-clone: ## Logs from the git-clone post-install Job pods (if any)
-	@$(KUBECTL) logs -n $(NAMESPACE) -l app.kubernetes.io/component=notebook-setup --tail=200 --all-containers=true 2>/dev/null || \
-		echo "No clone job pods found in $(NAMESPACE)."
+logs-clone: ## Logs from git-sync-demo init container on the notebook pod
+	@POD=$$($(KUBECTL) get pods -n $(NAMESPACE) -l app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/component=notebook -o jsonpath='{.items[0].metadata.name}' 2>/dev/null); \
+	if [ -z "$$POD" ]; then \
+		echo "No notebook pod found in $(NAMESPACE)."; \
+	else \
+		$(KUBECTL) logs -n $(NAMESPACE) "$$POD" -c git-sync-demo --tail=200 2>/dev/null || \
+		echo "No git-sync-demo init logs (gitSync disabled or init not run yet). Pod: $$POD"; \
+	fi
 
 .PHONY: undeploy
-undeploy: ## helm uninstall --wait + label-based Subscription/OperatorGroup cleanup (Redis OLM + OpenShift AI)
+undeploy: ## helm uninstall --wait + Redis Enterprise (REDB/REC/OLM) + OpenShift AI OLM cleanup
 	@echo "Undeploy $(RELEASE_NAME) in $(NAMESPACE)..."
+	@echo "Removing Redis Enterprise database and cluster (if present)..."
+	@$(KUBECTL) delete redisenterprisedatabases.app.redislabs.com "$(REDIS_ENTERPRISE_DATABASE_NAME)" -n "$(NAMESPACE)" --ignore-not-found --wait=false
+	@$(KUBECTL) delete redisenterpriseclusters.app.redislabs.com "$(REDIS_ENTERPRISE_CLUSTER_NAME)" -n "$(NAMESPACE)" --ignore-not-found --wait=false
+	@echo "Waiting up to $(REDIS_UNDEPLOY_WAIT)s for REC/REDB teardown..."
+	@i=0; while [ $$i -lt $(REDIS_UNDEPLOY_WAIT) ]; do \
+		rec=$$($(KUBECTL) get redisenterpriseclusters.app.redislabs.com "$(REDIS_ENTERPRISE_CLUSTER_NAME)" -n "$(NAMESPACE)" --ignore-not-found -o name 2>/dev/null); \
+		redb=$$($(KUBECTL) get redisenterprisedatabases.app.redislabs.com "$(REDIS_ENTERPRISE_DATABASE_NAME)" -n "$(NAMESPACE)" --ignore-not-found -o name 2>/dev/null); \
+		[ -z "$$rec" ] && [ -z "$$redb" ] && break; \
+		i=$$((i + 5)); sleep 5; \
+	done
+	@rec=$$($(KUBECTL) get redisenterpriseclusters.app.redislabs.com "$(REDIS_ENTERPRISE_CLUSTER_NAME)" -n "$(NAMESPACE)" --ignore-not-found -o name 2>/dev/null); \
+	if [ -n "$$rec" ]; then \
+		echo "REC still present; clearing finalizers so teardown can continue..."; \
+		$(KUBECTL) patch redisenterpriseclusters.app.redislabs.com "$(REDIS_ENTERPRISE_CLUSTER_NAME)" -n "$(NAMESPACE)" --type=merge -p '{"metadata":{"finalizers":[]}}' --ignore-not-found || true; \
+		$(KUBECTL) delete redisenterpriseclusters.app.redislabs.com "$(REDIS_ENTERPRISE_CLUSTER_NAME)" -n "$(NAMESPACE)" --ignore-not-found --wait=false || true; \
+	fi
 	@helm uninstall "$(RELEASE_NAME)" --namespace "$(NAMESPACE)" --wait || true
+	@echo "Removing Redis Enterprise operator (OLM Subscription/OperatorGroup) in $(NAMESPACE)..."
 	@$(KUBECTL) delete subscriptions.operators.coreos.com -n "$(NAMESPACE)" -l "$(REDIS_OLM_SELECTOR)" --ignore-not-found
+	@$(KUBECTL) delete subscriptions.operators.coreos.com "$(REDIS_ENTERPRISE_SUBSCRIPTION_NAME)" -n "$(NAMESPACE)" --ignore-not-found
 	@$(KUBECTL) delete operatorgroups.operators.coreos.com -n "$(NAMESPACE)" -l "$(REDIS_OLM_SELECTOR)" --ignore-not-found
+	@$(KUBECTL) delete operatorgroups.operators.coreos.com "$(REDIS_ENTERPRISE_OPERATOR_GROUP_NAME)" -n "$(NAMESPACE)" --ignore-not-found
+	@echo "Removing Redis Enterprise operator CSV and workloads (OLM may leave Failed CSVs behind)..."
+	@sleep 5
+	@$(KUBECTL) delete clusterserviceversion.operators.coreos.com -n "$(NAMESPACE)" -l "operators.coreos.com/$(REDIS_ENTERPRISE_SUBSCRIPTION_NAME).$(NAMESPACE)" --ignore-not-found
+	@for csv in $$($(KUBECTL) get clusterserviceversion.operators.coreos.com -n "$(NAMESPACE)" -o name 2>/dev/null | grep redis-enterprise-operator || true); do \
+		echo "Deleting $$csv"; \
+		$(KUBECTL) delete "$$csv" -n "$(NAMESPACE)" --ignore-not-found --wait=false; \
+	done
+	@$(KUBECTL) delete deployment redis-enterprise-operator -n "$(NAMESPACE)" --ignore-not-found --wait=false
+	@$(KUBECTL) delete service redis-enterprise-operator-service -n "$(NAMESPACE)" --ignore-not-found
 	@$(KUBECTL) delete subscriptions.operators.coreos.com -n "$(OPENSHIFT_AI_OPERATOR_NAMESPACE)" -l "$(AI_OLM_SELECTOR)" --ignore-not-found
 	@$(KUBECTL) delete operatorgroups.operators.coreos.com -n "$(OPENSHIFT_AI_OPERATOR_NAMESPACE)" -l "$(AI_OLM_SELECTOR)" --ignore-not-found
 	@echo "Done. Release namespace was not deleted; workspace PVC may remain (chart policy=keep)."
-	@echo "OLM may take a minute to tear down CSV/operator workloads after Subscription removal."
+	@echo "Redis Enterprise operator Subscription, CSV, and deployment removed from $(NAMESPACE) (re-check: oc get csv,pods -n $(NAMESPACE) | grep -i redis)."
 	@echo "OpenShift AI namespace $(OPENSHIFT_AI_OPERATOR_NAMESPACE) is left in place (shared cluster scope)."
