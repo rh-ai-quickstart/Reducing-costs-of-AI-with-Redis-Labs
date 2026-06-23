@@ -65,12 +65,12 @@ The same chart installs **Redis** for the notebooks in one of three modes (see *
 | `helm/values.yaml` | Notebook, git clone, Redis mode (Enterprise vs OT vs external); non-secret defaults. |
 | `helm/values-secret.example.yaml` | Template for **`values-secret.yaml`** (copy locally; gitignored). Holds `secrets.model.*` and optional `secrets.redis.url`. |
 | `helm/templates/` | `_helpers.tpl`, `NOTES.txt`, **`notebook/`**, **`redis-enterprise/`** (OLM + REC + REDB), **`openshift-ai/`** (optional Namespace / OperatorGroup / Subscription for `rhods-operator`), **`rbac/`**. |
-| `helm/Makefile` | All deploy automation: `help`, `deps`, `lint`, `template`, `check-secrets`, `validate-secrets`, `create-namespace`, `deploy`, OLM variants, `logs-clone`, `undeploy` (see table below). |
+| `helm/Makefile` | All deploy automation: `help`, `deps`, `lint`, `template`, `check-secrets`, `validate-secrets`, `create-namespace`, `deploy`, OLM variants, `logs-clone`, `uninstall` (see table below). |
 | `helm/scripts/validate_secrets.py` | Merges values like Helm and fails on empty/null **`secrets.model.*`** (and **`secrets.redis.url`** when using external Redis only). |
 
 ## Makefile commands (reference)
 
-All targets are invoked from the **repository root** with `make -f deploy/helm/Makefile <target>` (or `cd deploy/helm && make <target>`). Common variables: **`NAMESPACE`**, **`RELEASE_NAME`**, **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (for **`undeploy`** OLM cleanup; default **`redhat-ods-operator`**, match **`openshiftAI.operator.namespace`** in values), **`CHART_DIR`**, **`VALUES_FILE`**, **`VALUES_SECRET_FILE`**, **`TIMEOUT`** (default `10m`), **`HELM_EXTRA_ARGS`** (appended to `helm upgrade` / `helm template`).
+All targets are invoked from the **repository root** with `make -f deploy/helm/Makefile <target>` (or `cd deploy/helm && make <target>`). Common variables: **`NAMESPACE`**, **`RELEASE_NAME`**, **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (for **`uninstall`** OLM cleanup; default **`redhat-ods-operator`**, match **`openshiftAI.operator.namespace`** in values), **`CHART_DIR`**, **`VALUES_FILE`**, **`VALUES_SECRET_FILE`**, **`TIMEOUT`** (default `10m`), **`HELM_EXTRA_ARGS`** (appended to `helm upgrade` / `helm template`).
 
 | Target | What it runs | OLM / timeouts |
 |--------|----------------|-----------------|
@@ -87,7 +87,7 @@ All targets are invoked from the **repository root** with `make -f deploy/helm/M
 | **`deploy-all`** | **`deploy`** with **both** Redis Enterprise OLM and OpenShift AI operator flags set **`true`**. | **`TIMEOUT=25m`**. |
 | **`deploy-without-redis-enterprise-olm`** | **`deploy`** with **`redis.enterprise.olm.enabled=false`** explicitly (matches stock **`values.yaml`**). | Default **`TIMEOUT`**. |
 | **`logs-clone`** | Logs from pods labeled **`app.kubernetes.io/component=notebook-setup`**. | — |
-| **`undeploy`** | **`helm uninstall --wait`**, then **`kubectl`/`oc` delete** of **`Subscription`** and **`OperatorGroup`** still matching this release’s Helm labels (`app.kubernetes.io/instance=RELEASE_NAME`, `managed-by=Helm`, component `redis-enterprise-olm` or `openshift-ai-operator`) in **`NAMESPACE`** and **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (default **redhat-ods-operator**). Catches OLM objects Helm sometimes leaves when uninstalling cross-namespace resources. | Does **not** delete the release **`NAMESPACE`** or **`redhat-ods-operator`** itself. CSV/operator pods may disappear shortly after the **`Subscription`** is removed (OLM). Override **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** if your values differ. |
+| **`uninstall`** | **`helm uninstall --wait`**, then **`kubectl`/`oc` delete** of **`Subscription`** and **`OperatorGroup`** still matching this release’s Helm labels (`app.kubernetes.io/instance=RELEASE_NAME`, `managed-by=Helm`, component `redis-enterprise-olm` or `openshift-ai-operator`) in **`NAMESPACE`** and **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (default **redhat-ods-operator**). Catches OLM objects Helm sometimes leaves when uninstalling cross-namespace resources. | Does **not** delete the release **`NAMESPACE`** or **`redhat-ods-operator`** itself. CSV/operator pods may disappear shortly after the **`Subscription`** is removed (OLM). Override **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** if your values differ. |
 
 **Quick start (minimal):**
 
@@ -238,9 +238,9 @@ helm upgrade --install redis-notebook ./deploy/helm \
 ## Remove the release
 
 ```bash
-make -f deploy/helm/Makefile undeploy
+make -f deploy/helm/Makefile uninstall
 # or
 helm uninstall redis-notebook --namespace redis-notebook
 ```
 
-**`make undeploy`** runs **`helm uninstall --wait`**, then deletes any remaining chart-labeled **`Subscription`** / **`OperatorGroup`** for this **`RELEASE_NAME`** in the release namespace and in **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (see Makefile). OLM then tears down CSV/operator workloads; that can take a short time after the **`Subscription`** disappears. The release namespace, **`redhat-ods-operator`**, and the workspace PVC are **not** deleted automatically. On shared clusters, removing **`rhods-operator`** affects everyone using that operator — coordinate with your platform team.
+**`make uninstall`** runs **`helm uninstall --wait`**, then deletes any remaining chart-labeled **`Subscription`** / **`OperatorGroup`** for this **`RELEASE_NAME`** in the release namespace and in **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (see Makefile). OLM then tears down CSV/operator workloads; that can take a short time after the **`Subscription`** disappears. The release namespace, **`redhat-ods-operator`**, and the workspace PVC are **not** deleted automatically. On shared clusters, removing **`rhods-operator`** affects everyone using that operator — coordinate with your platform team.

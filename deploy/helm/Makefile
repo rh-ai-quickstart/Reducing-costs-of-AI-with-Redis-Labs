@@ -17,13 +17,13 @@ RELEASE_NAME ?= redis-notebook
 # Label selectors for chart-managed OLM objects (must match chart templates).
 REDIS_OLM_SELECTOR := app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=redis-enterprise-olm
 AI_OLM_SELECTOR := app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=openshift-ai-operator
-# Redis Enterprise names for undeploy (defaults match deploy/helm/values.yaml).
+# Redis Enterprise names for uninstall (defaults match deploy/helm/values.yaml).
 REDIS_ENTERPRISE_CLUSTER_NAME ?= rec
 REDIS_ENTERPRISE_DATABASE_NAME ?= redb
 REDIS_ENTERPRISE_SUBSCRIPTION_NAME ?= redis-enterprise-operator-cert
 REDIS_ENTERPRISE_OPERATOR_GROUP_NAME ?= redis-enterprise-operator-group
 REDIS_UNDEPLOY_WAIT ?= 120
-# Used by undeploy to remove chart-managed OpenShift AI OLM objects (must match values.yaml openshiftAI.operator.namespace).
+# Used by uninstall to remove chart-managed OpenShift AI OLM objects (must match values.yaml openshiftAI.operator.namespace).
 OPENSHIFT_AI_OPERATOR_NAMESPACE ?= redhat-ods-operator
 TIMEOUT ?= 10m
 # Appended to helm upgrade|template (e.g. make deploy-all sets Redis OLM + OpenShift AI).
@@ -128,9 +128,9 @@ logs-clone: ## Logs from git-sync-demo init container on the notebook pod
 		echo "No git-sync-demo init logs (gitSync disabled or init not run yet). Pod: $$POD"; \
 	fi
 
-.PHONY: undeploy
-undeploy: ## helm uninstall --wait + Redis Enterprise (REDB/REC/OLM) + OpenShift AI OLM cleanup
-	@echo "Undeploy $(RELEASE_NAME) in $(NAMESPACE)..."
+.PHONY: uninstall
+uninstall: ## helm uninstall --wait + Redis Enterprise (REDB/REC/OLM) + OpenShift AI OLM cleanup
+	@echo "Uninstall $(RELEASE_NAME) in $(NAMESPACE)..."
 	@echo "Removing Redis Enterprise database and cluster (if present)..."
 	@$(KUBECTL) delete redisenterprisedatabases.app.redislabs.com "$(REDIS_ENTERPRISE_DATABASE_NAME)" -n "$(NAMESPACE)" --ignore-not-found --wait=false
 	@$(KUBECTL) delete redisenterpriseclusters.app.redislabs.com "$(REDIS_ENTERPRISE_CLUSTER_NAME)" -n "$(NAMESPACE)" --ignore-not-found --wait=false
