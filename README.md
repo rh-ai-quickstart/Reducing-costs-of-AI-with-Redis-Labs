@@ -5,16 +5,16 @@ Reduce LLM costs with intelligent routing and caching with Redis Enterprise&reg;
 ## Table of contents
 
 - [Overview](#overview)
-- [Architecture](#architecture)
-- [Production view](#production-view)
+  - [Architecture](#architecture)
+  - [Production view](#production-view)
 - [Requirements](#requirements)
   - [Minimum hardware requirements](#minimum-hardware-requirements)
   - [Minimum software requirements](#minimum-software-requirements)
 - [Installation](#installation)
   - [Deploy on OpenShift (Helm)](#deploy-on-openshift-helm)
-  - [Uninstall from OpenShift](#uninstall-from-openshift)
+    - [Uninstall from OpenShift](#uninstall-from-openshift)
   - [Run locally](#run-locally)
-  - [Uninstall local deployment](#uninstall-local-deployment)
+    - [Uninstall local deployment](#uninstall-local-deployment)
 - [References](#references)
 - [Tags](#tags)
 
@@ -24,7 +24,7 @@ Let's imagine we are tasked with building an insurance claims assistant. The bus
 
 From our interaction data, we know that not all input queries require the latest reasoning model to answer, and that there are likely many FAQ-type questions for which we don't need to constantly regenerate answers.
 
-## Architecture
+### Architecture
 
 ```mermaid
 flowchart TB
@@ -82,7 +82,7 @@ sequenceDiagram
 
 In `demo/notebooks/`, `01_agent.ipynb` and `02_router_cache.ipynb` cover setting up this flow. The reusable agent used by `02_router_cache.ipynb` lives in `demo/shared/insurance_bot.py`.
 
-## Production view
+### Production view
 
 Finally, we want to provide insight into what managing a deployment like this on Red Hat OpenShift&reg; would look like from a production standpoint, where a system like this has to be able to handle many concurrent requests. Notebook `03_async_work_queue.ipynb` shows how you can easily distribute your work across many horizontally scalable workers. In practice, this would enable an architecture with multiple workers backed by a distributed Redis layer for pods to retrieve semantic and episodic memory, as well as cached data.
 
@@ -173,7 +173,7 @@ make -f deploy/helm/Makefile deploy
 # Optional: chart-managed Redis Enterprise operator OLM
 # make -f deploy/helm/Makefile deploy-all
 ```
-### Uninstall from OpenShift
+#### Uninstall from OpenShift
 
 ```bash
 make -f deploy/helm/Makefile uninstall
@@ -226,7 +226,7 @@ Run from the **`demo/notebooks`** directory (or ensure that is the notebook work
 | `02_router_cache.ipynb` | Imports `demo/shared/insurance_bot.py`: semantic router, thumbs-up–only semantic cache, agent with Redis memory. |
 | `03_async_work_queue.ipynb` | Uses [redis-agent-kit](https://pypi.org/project/redis-agent-kit/) for an async Redis-backed work queue across workers. |
 
-### Uninstall local deployment
+#### Uninstall local deployment
 
 Local setup has no cluster release. Deactivate the virtualenv and remove it if you no longer need it:
 
