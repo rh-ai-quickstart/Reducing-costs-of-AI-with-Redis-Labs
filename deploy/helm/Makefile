@@ -17,13 +17,13 @@ RELEASE_NAME ?= redis-notebook
 # Label selectors for chart-managed OLM objects (must match chart templates).
 REDIS_OLM_SELECTOR := app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=redis-enterprise-olm
 AI_OLM_SELECTOR := app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/managed-by=Helm,app.kubernetes.io/component=openshift-ai-operator
-# Redis Enterprise names for undeploy (defaults match deploy/helm/values.yaml).
+# Redis Enterprise names for uninstall (defaults match deploy/helm/values.yaml).
 REDIS_ENTERPRISE_CLUSTER_NAME ?= rec
 REDIS_ENTERPRISE_DATABASE_NAME ?= redb
 REDIS_ENTERPRISE_SUBSCRIPTION_NAME ?= redis-enterprise-operator-cert
 REDIS_ENTERPRISE_OPERATOR_GROUP_NAME ?= redis-enterprise-operator-group
 REDIS_UNDEPLOY_WAIT ?= 120
-# Used by undeploy to remove chart-managed OpenShift AI OLM objects (must match values.yaml openshiftAI.operator.namespace).
+# Used by uninstall to remove chart-managed OpenShift AI OLM objects (must match values.yaml openshiftAI.operator.namespace).
 OPENSHIFT_AI_OPERATOR_NAMESPACE ?= redhat-ods-operator
 TIMEOUT ?= 10m
 # Appended to helm upgrade|template (e.g. make deploy-all sets Redis OLM + OpenShift AI).
@@ -118,6 +118,49 @@ deploy-without-redis-enterprise-olm: ## deploy with redis.enterprise.olm.enabled
 	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
 		HELM_EXTRA_ARGS='--set redis.enterprise.olm.enabled=false'
 
+.PHONY: deploy-with-roi-dashboard
+deploy-with-roi-dashboard: ## deploy notebook + ROI dashboard + RAK worker
+	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
+		HELM_EXTRA_ARGS='--set roiDashboard.enabled=true --set insuranceWorker.enabled=true $(HELM_EXTRA_ARGS)'
+
+.PHONY: deploy-dashboard-only
+deploy-dashboard-only: ## deploy Redis + ROI dashboard + RAK worker (no notebook)
+	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
+		HELM_EXTRA_ARGS='--set notebook.enabled=false --set roiDashboard.enabled=true --set insuranceWorker.enabled=true $(HELM_EXTRA_ARGS)'
+
+.PHONY: route-roi-dashboard
+route-roi-dashboard: ## Print the OpenShift Route URL for the ROI dashboard
+	@$(KUBECTL) get route -n $(NAMESPACE) -l app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/component=roi-dashboard -o jsonpath='https://{.items[0].spec.host}{"\n"}' 2>/dev/null || \
+		echo "No Route found. Try: make -f deploy/helm/Makefile logs-roi-dashboard NAMESPACE=$(NAMESPACE)"
+
+.PHONY: logs-roi-dashboard
+logs-roi-dashboard: ## Logs from the roi-dashboard container
+	@POD=$$($(KUBECTL) get pods -n $(NAMESPACE) -l app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/component=roi-dashboard -o jsonpath='{.items[0].metadata.name}' 2>/dev/null); \
+	if [ -z "$$POD" ]; then \
+		echo "No roi-dashboard pod found in $(NAMESPACE) (is roiDashboard.enabled=true?)."; \
+	else \
+		$(KUBECTL) logs -n $(NAMESPACE) "$$POD" -c roi-dashboard --tail=200 -f; \
+	fi
+
+.PHONY: logs-insurance-worker
+logs-insurance-worker: ## Logs from the RAK insurance worker container
+	@POD=$$($(KUBECTL) get pods -n $(NAMESPACE) -l app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/component=insurance-worker -o jsonpath='{.items[0].metadata.name}' 2>/dev/null); \
+	if [ -z "$$POD" ]; then \
+		echo "No insurance-worker pod found in $(NAMESPACE) (is insuranceWorker.enabled=true?)."; \
+	else \
+		$(KUBECTL) logs -n $(NAMESPACE) "$$POD" -c insurance-worker --tail=200 -f; \
+	fi
+
+.PHONY: logs-roi-clone
+logs-roi-clone: ## Logs from git-sync-demo init container on the roi-dashboard pod
+	@POD=$$($(KUBECTL) get pods -n $(NAMESPACE) -l app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/component=roi-dashboard -o jsonpath='{.items[0].metadata.name}' 2>/dev/null); \
+	if [ -z "$$POD" ]; then \
+		echo "No roi-dashboard pod found in $(NAMESPACE) (is roiDashboard.enabled=true?)."; \
+	else \
+		$(KUBECTL) logs -n $(NAMESPACE) "$$POD" -c git-sync-demo --tail=200 2>/dev/null || \
+		echo "No git-sync-demo init logs (gitSync disabled or init not run yet). Pod: $$POD"; \
+	fi
+
 .PHONY: logs-clone
 logs-clone: ## Logs from git-sync-demo init container on the notebook pod
 	@POD=$$($(KUBECTL) get pods -n $(NAMESPACE) -l app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/component=notebook -o jsonpath='{.items[0].metadata.name}' 2>/dev/null); \
@@ -128,9 +171,9 @@ logs-clone: ## Logs from git-sync-demo init container on the notebook pod
 		echo "No git-sync-demo init logs (gitSync disabled or init not run yet). Pod: $$POD"; \
 	fi
 
-.PHONY: undeploy
-undeploy: ## helm uninstall --wait + Redis Enterprise (REDB/REC/OLM) + OpenShift AI OLM cleanup
-	@echo "Undeploy $(RELEASE_NAME) in $(NAMESPACE)..."
+.PHONY: uninstall
+uninstall: ## helm uninstall --wait + Redis Enterprise (REDB/REC/OLM) + OpenShift AI OLM cleanup
+	@echo "Uninstall $(RELEASE_NAME) in $(NAMESPACE)..."
 	@echo "Removing Redis Enterprise database and cluster (if present)..."
 	@$(KUBECTL) delete redisenterprisedatabases.app.redislabs.com "$(REDIS_ENTERPRISE_DATABASE_NAME)" -n "$(NAMESPACE)" --ignore-not-found --wait=false
 	@$(KUBECTL) delete redisenterpriseclusters.app.redislabs.com "$(REDIS_ENTERPRISE_CLUSTER_NAME)" -n "$(NAMESPACE)" --ignore-not-found --wait=false

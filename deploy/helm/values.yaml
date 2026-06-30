@@ -161,7 +161,100 @@ notebook:
   gitSync:
     enabled: true
     # Replace demo/ on pod restart when true (default: skip if demo/notebooks exists).
-    forceRefresh: false
+    forceRefresh: true
     repo: "https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs.git"
     branch: "main"
+    image: "alpine/git:latest"
+
+# ROI / Request Journey Streamlit dashboard (optional companion to the notebook).
+# Uses its own PVC so it can run alongside the notebook workload.
+# Point gitSync.repo at your fork/branch until demo/app.py is on main.
+roiDashboard:
+  enabled: true
+
+  # When true, complex claims skip LangGraph tool-calling and use Redis pre-fetch +
+  # a single chat completion. Required for most LiteLLM / MaaS gateways that do not
+  # expose --enable-auto-tool-choice on the model server.
+  plainComplex: true
+
+  # Per-stage animation delay (unused by simplified chat UI; kept for compatibility).
+  journeyStageDelayMs: "400"
+
+  image:
+    repository: python
+    tag: "3.12-slim"
+    pullPolicy: IfNotPresent
+
+  # Rely on PyPI for streamlit + demo deps at pod start (see deployment command).
+  # Set to "" for air-gapped installs (bake deps into a custom image instead).
+  pipExtraIndexUrl: "https://pypi.org/simple"
+
+  resources:
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+
+  # Workspace PVC (shared claim name with notebook; created when either is enabled).
+  storage:
+    size: 10Gi
+    storageClassName: ""
+
+  route:
+    enabled: true
+    host: ""
+    path: ""
+
+  gitSync:
+    enabled: true
+    forceRefresh: false
+    repo: "https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs.git"
+    branch: "rj_docs"
+    image: "alpine/git:latest"
+
+  # Default token pricing ($ per 1M tokens) for the comparison dashboard sidebar.
+  modelPricing:
+    simple:
+      inputPerMillion: 0.15
+      outputPerMillion: 0.60
+    complex:
+      inputPerMillion: 2.50
+      outputPerMillion: 10.00
+
+# Redis Agent Kit worker for Tab 3 (Production Queue). Consumes the same Redis
+# Streams queue as the Streamlit UI submitter. Uses emptyDir + git-sync so it
+# can run alongside the dashboard without sharing a ReadWriteOnce PVC.
+insuranceWorker:
+  enabled: true
+
+  replicas: 1
+  concurrency: 4
+  queueName: insurance
+
+  # Match roiDashboard plain-complex mode (MaaS gateways without tool-calling).
+  plainComplex: true
+
+  image:
+    repository: python
+    tag: "3.12-slim"
+    pullPolicy: IfNotPresent
+
+  pipExtraIndexUrl: "https://pypi.org/simple"
+
+  resources:
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+    requests:
+      cpu: "500m"
+      memory: "2Gi"
+
+  gitSync:
+    enabled: true
+    forceRefresh: false
+    # Empty repo/branch falls back to roiDashboard.gitSync.* in templates.
+    repo: ""
+    branch: ""
     image: "alpine/git:latest"

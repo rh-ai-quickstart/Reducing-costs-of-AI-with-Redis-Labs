@@ -1,0 +1,20 @@
+{{- if .Values.roiDashboard.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "redis-notebook.fullname" . }}-roi-dashboard-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "redis-notebook.roiDashboardLabels" . | nindent 4 }}
+  annotations:
+    openshift.io/display-name: "Redis AI cost reduction — ROI dashboard workspace"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.roiDashboard.storage.size }}
+  {{- with .Values.roiDashboard.storage.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}

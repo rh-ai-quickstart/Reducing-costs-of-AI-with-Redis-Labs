@@ -36,6 +36,8 @@ The same chart installs **Redis** for the notebooks in one of three modes (see *
 **Not deployed by this chart**
 
 - **No standalone production API** for the insurance demo — only the workbench and Redis wiring for the notebooks.
+- **Optional Insurance demo dashboard** — set **`roiDashboard.enabled: true`** to deploy the Streamlit app (`demo/app.py`) on port **8501** with its own PVC, Route, and the same **`secrets.model.*`** + **`REDIS_URL`** as the notebook.
+- **Optional RAK insurance worker** — set **`insuranceWorker.enabled: true`** (default when using the dashboard) to process Tab 3 queue tasks via **`rak worker --tasks insurance_worker:tasks`**.
 - **No automatic full “OpenShift AI product” rollout** beyond the optional **`rhods-operator`** Subscription (cluster admins may still need to approve install plans, configure DSC, GPU nodes, etc.).
 - **No Redis Enterprise operator** unless you enable **`redis.enterprise.olm`** or install **`redis-enterprise-operator-cert`** from OperatorHub into the release namespace yourself.
 - **No Kubeflow notebook-controller** — `notebook.kind=Notebook` assumes RHOAI/ODH already provides it.
@@ -64,13 +66,13 @@ The same chart installs **Redis** for the notebooks in one of three modes (see *
 | `helm/Chart.lock` / `helm/charts/*.tgz` | Locked dependency versions (run `make -f deploy/helm/Makefile deps` after changing `Chart.yaml` or enabling the operator path). |
 | `helm/values.yaml` | Notebook, git clone, Redis mode (Enterprise vs OT vs external); non-secret defaults. |
 | `helm/values-secret.example.yaml` | Template for **`values-secret.yaml`** (copy locally; gitignored). Holds `secrets.model.*` and optional `secrets.redis.url`. |
-| `helm/templates/` | `_helpers.tpl`, `NOTES.txt`, **`notebook/`**, **`redis-enterprise/`** (OLM + REC + REDB), **`openshift-ai/`** (optional Namespace / OperatorGroup / Subscription for `rhods-operator`), **`rbac/`**. |
-| `helm/Makefile` | All deploy automation: `help`, `deps`, `lint`, `template`, `check-secrets`, `validate-secrets`, `create-namespace`, `deploy`, OLM variants, `logs-clone`, `undeploy` (see table below). |
+| `helm/templates/` | `_helpers.tpl`, `NOTES.txt`, **`notebook/`**, **`roi-dashboard/`**, **`insurance-worker/`** (optional RAK worker for Tab 3), **`redis-enterprise/`** (OLM + REC + REDB), **`openshift-ai/`** (optional Namespace / OperatorGroup / Subscription for `rhods-operator`), **`rbac/`**. |
+| `helm/Makefile` | All deploy automation: `help`, `deps`, `lint`, `template`, `check-secrets`, `validate-secrets`, `create-namespace`, `deploy`, OLM variants, `logs-clone`, `uninstall` (see table below). |
 | `helm/scripts/validate_secrets.py` | Merges values like Helm and fails on empty/null **`secrets.model.*`** (and **`secrets.redis.url`** when using external Redis only). |
 
 ## Makefile commands (reference)
 
-All targets are invoked from the **repository root** with `make -f deploy/helm/Makefile <target>` (or `cd deploy/helm && make <target>`). Common variables: **`NAMESPACE`**, **`RELEASE_NAME`**, **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (for **`undeploy`** OLM cleanup; default **`redhat-ods-operator`**, match **`openshiftAI.operator.namespace`** in values), **`CHART_DIR`**, **`VALUES_FILE`**, **`VALUES_SECRET_FILE`**, **`TIMEOUT`** (default `10m`), **`HELM_EXTRA_ARGS`** (appended to `helm upgrade` / `helm template`).
+All targets are invoked from the **repository root** with `make -f deploy/helm/Makefile <target>` (or `cd deploy/helm && make <target>`). Common variables: **`NAMESPACE`**, **`RELEASE_NAME`**, **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (for **`uninstall`** OLM cleanup; default **`redhat-ods-operator`**, match **`openshiftAI.operator.namespace`** in values), **`CHART_DIR`**, **`VALUES_FILE`**, **`VALUES_SECRET_FILE`**, **`TIMEOUT`** (default `10m`), **`HELM_EXTRA_ARGS`** (appended to `helm upgrade` / `helm template`).
 
 | Target | What it runs | OLM / timeouts |
 |--------|----------------|-----------------|
@@ -86,8 +88,13 @@ All targets are invoked from the **repository root** with `make -f deploy/helm/M
 | **`deploy-openshift-ai-operator`** | Same as **`deploy`** with **`--set openshiftAI.operator.enabled=true`** only (Redis Enterprise OLM still follows **`values.yaml`**, usually off). Subscribes **`rhods-operator`** in **`openshiftAI.operator.namespace`** (default **`redhat-ods-operator`**). | **`TIMEOUT=25m`**. |
 | **`deploy-all`** | **`deploy`** with **both** Redis Enterprise OLM and OpenShift AI operator flags set **`true`**. | **`TIMEOUT=25m`**. |
 | **`deploy-without-redis-enterprise-olm`** | **`deploy`** with **`redis.enterprise.olm.enabled=false`** explicitly (matches stock **`values.yaml`**). | Default **`TIMEOUT`**. |
-| **`logs-clone`** | Logs from pods labeled **`app.kubernetes.io/component=notebook-setup`**. | — |
-| **`undeploy`** | **`helm uninstall --wait`**, then **`kubectl`/`oc` delete** of **`Subscription`** and **`OperatorGroup`** still matching this release’s Helm labels (`app.kubernetes.io/instance=RELEASE_NAME`, `managed-by=Helm`, component `redis-enterprise-olm` or `openshift-ai-operator`) in **`NAMESPACE`** and **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (default **redhat-ods-operator**). Catches OLM objects Helm sometimes leaves when uninstalling cross-namespace resources. | Does **not** delete the release **`NAMESPACE`** or **`redhat-ods-operator`** itself. CSV/operator pods may disappear shortly after the **`Subscription`** is removed (OLM). Override **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** if your values differ. |
+| **`deploy-with-roi-dashboard`** | **`deploy`** with **`roiDashboard.enabled=true`** (notebook + dashboard). | Default **`TIMEOUT`**. |
+| **`deploy-dashboard-only`** | **`deploy`** with **`notebook.enabled=false`** and **`roiDashboard.enabled=true`**. | Default **`TIMEOUT`**. |
+| **`route-roi-dashboard`** | Prints the OpenShift Route URL for the ROI dashboard pod. | — |
+| **`logs-roi-dashboard`** | Tail Streamlit container logs on the ROI dashboard pod. | — |
+| **`logs-roi-clone`** | Logs from the git-sync init container on the ROI dashboard pod. | — |
+| **`logs-clone`** | Logs from git-sync-demo init container on the notebook pod. | — |
+| **`uninstall`** | **`helm uninstall --wait`**, then **`kubectl`/`oc` delete** of **`Subscription`** and **`OperatorGroup`** still matching this release’s Helm labels (`app.kubernetes.io/instance=RELEASE_NAME`, `managed-by=Helm`, component `redis-enterprise-olm` or `openshift-ai-operator`) in **`NAMESPACE`** and **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (default **redhat-ods-operator**). Catches OLM objects Helm sometimes leaves when uninstalling cross-namespace resources. | Does **not** delete the release **`NAMESPACE`** or **`redhat-ods-operator`** itself. CSV/operator pods may disappear shortly after the **`Subscription`** is removed (OLM). Override **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** if your values differ. |
 
 **Quick start (minimal):**
 
@@ -111,6 +118,70 @@ Override namespace / release:
 
 ```bash
 make -f deploy/helm/Makefile deploy NAMESPACE=my-project RELEASE_NAME=my-release
+```
+
+## ROI / Request Journey dashboard (Streamlit)
+
+Optional conference demo UI at **`demo/app.py`**. When enabled, the chart deploys:
+
+- **Deployment** — `python:3.12-slim`, installs deps at pod start, runs Streamlit on **8501**
+- **Dedicated PVC** — separate from the notebook so both workloads can run together
+- **OpenShift Route** — edge TLS (same pattern as `notebook.kind=Deployment`)
+- **git-sync init container** — clones `roiDashboard.gitSync.repo` and copies **`demo/`** into the pod workspace
+- **Same secrets** — `SIMPLE_MODEL_*`, `COMPLEX_MODEL_*`, and `REDIS_URL` from `values-secret.yaml` (live mode when all four model vars are set)
+
+**Deploy with notebook + dashboard:**
+
+```bash
+make -f deploy/helm/Makefile deploy-with-roi-dashboard
+```
+
+**Dashboard only** (Redis + Streamlit, no Jupyter):
+
+```bash
+make -f deploy/helm/Makefile deploy-dashboard-only
+```
+
+**Get the URL:**
+
+```bash
+make -f deploy/helm/Makefile route-roi-dashboard NAMESPACE=redis-notebook
+# or
+oc get route -n redis-notebook -l app.kubernetes.io/component=roi-dashboard
+```
+
+**Before first deploy:** `demo/app.py` must exist on the branch cloned by **`roiDashboard.gitSync`**. Until it is merged to upstream `main`, point at your fork:
+
+```bash
+make -f deploy/helm/Makefile deploy-with-roi-dashboard \
+  HELM_EXTRA_ARGS='--set roiDashboard.gitSync.repo=https://github.com/YOUR_ORG/Reducing-costs-of-AI-with-Redis-Labs.git --set roiDashboard.gitSync.branch=YOUR_BRANCH'
+```
+
+Tune animation speed with **`roiDashboard.journeyStageDelayMs`** (default `400`).
+
+## Insurance worker (RAK — Tab 3)
+
+When **`insuranceWorker.enabled: true`** (default in `values.yaml`), the chart deploys a separate **Deployment** that runs:
+
+```bash
+rak worker --name insurance --tasks insurance_worker:tasks --concurrency 4
+```
+
+The worker uses an **emptyDir** workspace with its own git-sync init container (same repo/branch as **`roiDashboard.gitSync`** by default), so it can run alongside the Streamlit dashboard without sharing a ReadWriteOnce PVC.
+
+**Tail worker logs:**
+
+```bash
+make -f deploy/helm/Makefile logs-insurance-worker NAMESPACE=redis-notebook
+```
+
+**Scale throughput** — raise **`insuranceWorker.replicas`** or **`insuranceWorker.concurrency`** in `values.yaml`.
+
+Disable if you only need Tabs 0–2:
+
+```yaml
+insuranceWorker:
+  enabled: false
 ```
 
 ## Quick deploy (Helm only)
@@ -238,9 +309,9 @@ helm upgrade --install redis-notebook ./deploy/helm \
 ## Remove the release
 
 ```bash
-make -f deploy/helm/Makefile undeploy
+make -f deploy/helm/Makefile uninstall
 # or
 helm uninstall redis-notebook --namespace redis-notebook
 ```
 
-**`make undeploy`** runs **`helm uninstall --wait`**, then deletes any remaining chart-labeled **`Subscription`** / **`OperatorGroup`** for this **`RELEASE_NAME`** in the release namespace and in **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (see Makefile). OLM then tears down CSV/operator workloads; that can take a short time after the **`Subscription`** disappears. The release namespace, **`redhat-ods-operator`**, and the workspace PVC are **not** deleted automatically. On shared clusters, removing **`rhods-operator`** affects everyone using that operator — coordinate with your platform team.
+**`make uninstall`** runs **`helm uninstall --wait`**, then deletes any remaining chart-labeled **`Subscription`** / **`OperatorGroup`** for this **`RELEASE_NAME`** in the release namespace and in **`OPENSHIFT_AI_OPERATOR_NAMESPACE`** (see Makefile). OLM then tears down CSV/operator workloads; that can take a short time after the **`Subscription`** disappears. The release namespace, **`redhat-ods-operator`**, and the workspace PVC are **not** deleted automatically. On shared clusters, removing **`rhods-operator`** affects everyone using that operator — coordinate with your platform team.

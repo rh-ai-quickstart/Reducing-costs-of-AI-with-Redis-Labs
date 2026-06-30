@@ -158,8 +158,8 @@ This quickstart was tested with the following software versions:
 
 This repository includes a **Helm chart** under **`deploy/helm`** (chart name **`redis-notebook`**) that can install:
 
-- a **Jupyter workbench** with a persistent workspace — by default a plain `Deployment` + `Service` + OpenShift `Route`, or a Kubeflow **`Notebook`** CR when `notebook.kind=Notebook` (requires **Red Hat OpenShift AI** / Open Data Hub),
-- a **post-install Job** that clones this repo and copies **`demo/`** into the workspace,
+- a **Jupyter workbench** with a persistent workspace — by default a Kubeflow **`Notebook`** CR (`notebook.kind=Notebook`, requires **Red Hat OpenShift AI** / Open Data Hub), or a plain `Deployment` + `Service` + OpenShift `Route` when `notebook.kind=Deployment` (any OpenShift cluster),
+- a **git-sync init container** on the notebook pod that clones this repo and copies **`demo/`** into the workspace,
 - **Redis Enterprise** in-cluster by default (`RedisEnterpriseCluster` + `RedisEnterpriseDatabase`), with optional **OT-CONTAINER-KIT** operator + Redis CR or an **external** `REDIS_URL` instead.
 
 **Before `make deploy`:** create **`deploy/helm/values-secret.yaml`** (gitignored) from **`deploy/helm/values-secret.example.yaml`** and set real values for `secrets.model.apiKey` and the other `secrets.model.*` keys. **`make deploy`** runs **`check-secrets`** (file exists) and **`validate-secrets`** (merged values must not be null/empty for required fields; requires **PyYAML**: `python3 -m pip install pyyaml`).
@@ -170,11 +170,13 @@ cp deploy/helm/values-secret.example.yaml deploy/helm/values-secret.yaml
 
 make -f deploy/helm/Makefile help
 make -f deploy/helm/Makefile deploy
+# Optional: chart-managed Redis Enterprise operator OLM
+# make -f deploy/helm/Makefile deploy-all
 ```
 ### Uninstall from OpenShift
 
-```
-<command to uninstall>
+```bash
+make -f deploy/helm/Makefile uninstall
 ```
 
 More **helm upgrade** examples, operator modes, and cleanup: [deploy/README.md](deploy/README.md).
@@ -226,8 +228,11 @@ Run from the **`demo/notebooks`** directory (or ensure that is the notebook work
 
 ### Uninstall local deployment
 
-```
-<command to uninstall>
+Local setup has no cluster release. Deactivate the virtualenv and remove it if you no longer need it:
+
+```bash
+deactivate
+rm -rf .venv
 ```
 ## References
 

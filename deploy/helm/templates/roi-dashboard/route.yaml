@@ -1,0 +1,28 @@
+{{- if and .Values.roiDashboard.enabled .Values.roiDashboard.route.enabled }}
+{{- if .Capabilities.APIVersions.Has "route.openshift.io/v1" }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "redis-notebook.roiDashboardName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "redis-notebook.roiDashboardLabels" . | nindent 4 }}
+spec:
+  {{- with .Values.roiDashboard.route.host }}
+  host: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.roiDashboard.route.path }}
+  path: {{ . | quote }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ include "redis-notebook.roiDashboardName" . }}
+    weight: 100
+  port:
+    targetPort: streamlit
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+{{- end }}
+{{- end }}

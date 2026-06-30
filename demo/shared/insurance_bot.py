@@ -11,16 +11,17 @@ import json
 import os
 import re
 from functools import lru_cache
-from pathlib import Path
 
-from dotenv import load_dotenv
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = REPO_ROOT / "demo" / "notebooks" / "data"
-POLICIES_PATH = DATA_DIR / "policies.json"
-FAQ_PATH = DATA_DIR / "insurance_faq.json"
-FAQ_INDEX_NAME = "insurance-faq"
-FAQ_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+from config import (
+    DATA_DIR,
+    FAQ_EMBED_MODEL,
+    FAQ_INDEX_NAME,
+    FAQ_PATH,
+    POLICIES_PATH,
+    REPO_ROOT,
+    load_config,
+)
+from utils.openai_utils import openai_base_url
 
 SIMPLE_SYSTEM_PROMPT = (
     "You are a concise insurance customer-support assistant. "
@@ -101,32 +102,6 @@ AGENT_SYSTEM_PROMPT = (
     "- For anything outside claims guidance, tell the user to contact their "
     "insurer directly."
 )
-
-
-def _openai_base_url(endpoint: str) -> str:
-    """Normalize a chat-completions endpoint to the `/v1` base URL ChatOpenAI expects."""
-    trimmed = endpoint.rstrip("/")
-    for suffix in ("/chat/completions", "/completions"):
-        if trimmed.endswith(suffix):
-            trimmed = trimmed[: -len(suffix)]
-            break
-    return trimmed
-
-
-def load_config() -> dict:
-    """Load .env from the project root and return the relevant settings."""
-    load_dotenv(REPO_ROOT / ".env")
-    return {
-        "simple_endpoint": os.environ["SIMPLE_MODEL_ENDPOINT"],
-        "simple_key": os.environ["SIMPLE_MODEL_KEY"],
-        "simple_model": os.environ.get("SIMPLE_MODEL_NAME", "qwen3-14b"),
-        "complex_endpoint": os.environ["COMPLEX_MODEL_ENDPOINT"],
-        "complex_key": os.environ["COMPLEX_MODEL_KEY"],
-        "complex_model": os.environ.get(
-            "COMPLEX_MODEL_NAME", "deepseek-r1-distill-qwen-14b"
-        ),
-        "redis_url": os.environ.get("REDIS_URL", "redis://localhost:6379"),
-    }
 
 
 @lru_cache(maxsize=1)
@@ -214,6 +189,64 @@ def _faq_index():
     return index
 
 
+CLAIM_DOCUMENTS_CATALOG = {
+    "auto": [
+        "date and location of incident",
+        "policy number",
+        "photos of damage",
+        "incident description",
+        "police or incident report number",
+    ],
+    "windshield": [
+        "photos of the damaged glass",
+        "policy number",
+        "date of damage",
+    ],
+    "homeowners": [
+        "photos of damage",
+        "policy number",
+        "description of what happened",
+        "repair estimates",
+        "receipts for temporary repairs",
+    ],
+}
+
+
+def _list_required_documents(claim_type: str) -> list[str]:
+    return CLAIM_DOCUMENTS_CATALOG.get(
+        claim_type.lower(),
+        [
+            "policy number",
+            "date and description of incident",
+            "any photos or receipts related to the loss",
+        ],
+    )
+
+
+def _guess_claim_type(question: str) -> str:
+    lowered = question.lower()
+    if "windshield" in lowered or "glass" in lowered:
+        return "windshield"
+    if any(word in lowered for word in ("roof", "tree", "home", "house", "homeowner")):
+        return "homeowners"
+    return "auto"
+
+
+def _extract_policy_id(question: str) -> str | None:
+    match = re.search(r"AUTO-\d+", question, re.IGNORECASE)
+    return match.group(0).upper() if match else None
+
+
+def use_plain_complex() -> bool:
+    """When true, complex claims use a single chat completion instead of a tool-calling agent."""
+    return os.environ.get("INSURANCE_PLAIN_COMPLEX", "").lower() in ("1", "true", "yes")
+
+
+def use_auto_cache() -> bool:
+    """When true, fresh answers are stored in the semantic cache for repeat lookups."""
+    return os.environ.get("INSURANCE_AUTO_CACHE", "true").lower() in ("1", "true", "yes")
+
+
 def _search_faq(query: str, k: int = 3) -> list[dict]:
     from redisvl.query import VectorQuery
 
@@ -259,35 +292,7 @@ def build_tools():
     @tool
     def list_required_documents(claim_type: str) -> list[str]:
         """List typical documents needed for a claim type (e.g. 'auto', 'windshield', 'homeowners')."""
-        catalog = {
-            "auto": [
-                "date and location of incident",
-                "policy number",
-                "photos of damage",
-                "incident description",
-                "police or incident report number",
-            ],
-            "windshield": [
-                "photos of the damaged glass",
-                "policy number",
-                "date of damage",
-            ],
-            "homeowners": [
-                "photos of damage",
-                "policy number",
-                "description of what happened",
-                "repair estimates",
-                "receipts for temporary repairs",
-            ],
-        }
-        return catalog.get(
-            claim_type.lower(),
-            [
-                "policy number",
-                "date and description of incident",
-                "any photos or receipts related to the loss",
-            ],
-        )
+        return _list_required_documents(claim_type)
 
     return [search_faq, get_policy_details, list_required_documents]
 
@@ -302,7 +307,7 @@ def build_llm(which: str = "complex", cfg: dict | None = None):
     return ChatOpenAI(
         model=cfg[f"{which}_model"],
         api_key=cfg[f"{which}_key"],
-        base_url=_openai_base_url(cfg[f"{which}_endpoint"]),
+        base_url=openai_base_url(cfg[f"{which}_endpoint"]),
     )
 
 
@@ -363,6 +368,61 @@ def answer_simple(llm, question: str) -> tuple[str, dict]:
     return strip_reasoning(resp.content), (resp.usage_metadata or {})
 
 
+def _build_complex_context(question: str) -> tuple[str, list[str]]:
+    """Pre-fetch FAQ, policy, and document hints for plain (non-agent) complex answers."""
+    sections: list[str] = []
+    tools_used: list[str] = []
+
+    faq_hits = _search_faq(question, k=3)
+    if faq_hits:
+        tools_used.append("search_faq")
+        lines = ["FAQ matches:"]
+        for hit in faq_hits:
+            lines.append(
+                f"- Q: {hit['question']}\n  A: {hit['answer']} (score={hit['score']:.2f})"
+            )
+        sections.append("\n".join(lines))
+
+    policy_id = _extract_policy_id(question)
+    if policy_id:
+        tools_used.append("get_policy_details")
+        policy = load_policies().get(policy_id)
+        if policy:
+            sections.append(f"Policy {policy_id}:\n{json.dumps(policy, indent=2)}")
+        else:
+            sections.append(
+                f"Policy {policy_id} was not found. Known ids: {list(load_policies().keys())}"
+            )
+
+    claim_type = _guess_claim_type(question)
+    tools_used.append("list_required_documents")
+    docs = _list_required_documents(claim_type)
+    sections.append(
+        f"Typical documents for {claim_type} claims:\n"
+        + "\n".join(f"- {doc}" for doc in docs)
+    )
+
+    return "\n\n".join(sections), tools_used
+
+
+def answer_complex(llm, question: str) -> tuple[str, dict, list[str]]:
+    """Run the complex model with retrieved context instead of tool-calling agent APIs."""
+    context, tools_used = _build_complex_context(question)
+    user_content = (
+        "Use the retrieved context below when answering. "
+        "Do not mention tools or retrieval steps.\n\n"
+        f"{context}\n\n"
+        f"Customer question: {question}"
+    )
+    resp = llm.invoke(
+        [
+            {"role": "system", "content": AGENT_SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ]
+    )
+    return strip_reasoning(resp.content), (resp.usage_metadata or {}), tools_used
+
+
 def build_router(cfg: dict | None = None, name: str = "insurance-router"):
     """Build the three-way SemanticRouter (simple / complex / blocked)."""
     from redisvl.extensions.router import Route, SemanticRouter
@@ -401,7 +461,7 @@ def build_cache(
     name: str = "insurance-approved-cache",
     distance_threshold: float = 0.2,
 ):
-    """Build the SemanticCache used for approved complex-path answers."""
+    """Build the SemanticCache for complex-path and repeat question lookups."""
     from redisvl.extensions.llmcache import SemanticCache
 
     cfg = cfg or load_config()
@@ -422,6 +482,18 @@ def _agent_usage(result) -> dict:
     return totals
 
 
+def extract_tools_used(result) -> list[str]:
+    """Collect tool names invoked during an agent run."""
+    names: list[str] = []
+    for msg in result.get("messages", []):
+        tool_calls = getattr(msg, "tool_calls", None) or []
+        for call in tool_calls:
+            name = call.get("name") if isinstance(call, dict) else getattr(call, "name", None)
+            if name and name not in names:
+                names.append(name)
+    return names
+
+
 class InsurancePipeline:
     """Router + cache + simple/complex dispatch matching notebook 02's `handle()`.
 
@@ -430,27 +502,97 @@ class InsurancePipeline:
     """
 
     def __init__(self, cfg: dict | None = None, cache_distance_threshold: float = 0.2):
-        from langgraph.checkpoint.redis import RedisSaver
-
         self.cfg = cfg or load_config()
         self.router = build_router(self.cfg)
         self.cache = build_cache(self.cfg, distance_threshold=cache_distance_threshold)
         self.simple_llm = build_simple_llm(self.cfg)
+        self.complex_llm = build_llm("complex", self.cfg)
+        self.plain_complex = use_plain_complex()
+        self._saver_cm = None
+        self.checkpointer = None
+        self.agent = None
+        if self.plain_complex:
+            return
+        from langgraph.checkpoint.redis import RedisSaver
+
         self._saver_cm = RedisSaver.from_conn_string(self.cfg["redis_url"])
         self.checkpointer = self._saver_cm.__enter__()
         self.checkpointer.setup()
         self.agent = build_agent(checkpointer=self.checkpointer, cfg=self.cfg)
 
     def close(self) -> None:
+        if self._saver_cm is None:
+            return
         try:
             self._saver_cm.__exit__(None, None, None)
         except Exception:
             pass
 
-    def handle(self, question: str, thread_id: str = "demo-thread") -> dict:
+    def store_response(
+        self,
+        question: str,
+        answer: str,
+        *,
+        metadata: dict | None = None,
+    ) -> None:
+        """Store a question/answer pair in the semantic cache."""
+        self.cache.store(
+            prompt=question,
+            response=answer,
+            metadata=metadata or {"source": "pipeline", "auto_stored": True},
+        )
+
+    def _lookup_cache(self, question: str) -> dict | None:
+        """Return a cache-hit outcome dict, or None when no similar prompt is stored."""
+        hit = self.cache.check(prompt=question, num_results=1)
+        if not hit:
+            return None
+        return {
+            "route": "complex",
+            "model": None,
+            "cached": True,
+            "answer": strip_reasoning(hit[0]["response"]),
+            "usage": {},
+            "similarity_distance": hit[0].get("vector_distance"),
+        }
+
+    def _finalize_answer(self, question: str, outcome: dict) -> dict:
+        """Auto-store fresh answers so identical or similar prompts hit the cache later."""
+        if (
+            use_auto_cache()
+            and not outcome.get("cached")
+            and outcome.get("route") != "blocked"
+        ):
+            self.store_response(question, outcome["answer"])
+        return outcome
+
+    def handle(
+        self,
+        question: str,
+        thread_id: str = "demo-thread",
+        *,
+        force_cache_miss: bool = False,
+    ) -> dict:
         """Classify, dispatch, and return a structured answer dict."""
+        base_meta = {"thread_id": thread_id}
+
+        if not force_cache_miss:
+            cached = self._lookup_cache(question)
+            if cached:
+                return {
+                    **cached,
+                    "router_name": None,
+                    "router_distance": None,
+                    **base_meta,
+                }
+
         match = self.router(question)
         route = match.name if match else None
+        router_meta = {
+            **base_meta,
+            "router_name": route,
+            "router_distance": getattr(match, "distance", None),
+        }
 
         if route == "blocked":
             return {
@@ -459,40 +601,55 @@ class InsurancePipeline:
                 "cached": False,
                 "answer": REFUSAL,
                 "usage": {},
+                **router_meta,
             }
 
         if route == "simple-insurance":
             answer, usage = answer_simple(self.simple_llm, question)
-            return {
-                "route": "simple",
-                "model": self.cfg["simple_model"],
-                "cached": False,
-                "answer": answer,
-                "usage": usage,
-            }
+            return self._finalize_answer(
+                question,
+                {
+                    "route": "simple",
+                    "model": self.cfg["simple_model"],
+                    "cached": False,
+                    "answer": answer,
+                    "usage": usage,
+                    **router_meta,
+                },
+            )
 
-        hit = self.cache.check(prompt=question, num_results=1)
-        if hit:
-            return {
-                "route": "complex",
-                "model": None,
-                "cached": True,
-                "answer": hit[0]["response"],
-                "usage": {},
-                "similarity_distance": hit[0].get("vector_distance"),
-            }
+        if self.plain_complex:
+            answer, usage, tools_used = answer_complex(self.complex_llm, question)
+            return self._finalize_answer(
+                question,
+                {
+                    "route": "complex",
+                    "model": self.cfg["complex_model"],
+                    "cached": False,
+                    "answer": answer,
+                    "usage": usage,
+                    "plain_complex": True,
+                    "tools_used": tools_used,
+                    **router_meta,
+                },
+            )
 
         result = self.agent.invoke(
             {"messages": [{"role": "user", "content": question}]},
             config={"configurable": {"thread_id": thread_id}},
         )
-        return {
-            "route": "complex",
-            "model": self.cfg["complex_model"],
-            "cached": False,
-            "answer": strip_reasoning(result["messages"][-1].content),
-            "usage": _agent_usage(result),
-        }
+        return self._finalize_answer(
+            question,
+            {
+                "route": "complex",
+                "model": self.cfg["complex_model"],
+                "cached": False,
+                "answer": strip_reasoning(result["messages"][-1].content),
+                "usage": _agent_usage(result),
+                "tools_used": extract_tools_used(result),
+                **router_meta,
+            },
+        )
 
 
 def build_pipeline(
