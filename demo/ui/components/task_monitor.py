@@ -42,10 +42,23 @@ def render_task_table(tasks: list[QueueTask], *, question_max_len: int = 60) -> 
 
 def render_queue_metrics(metrics: dict) -> None:
     """Show Redis stream depth and active worker count."""
+    st.markdown("##### Queue health")
     m1, m2, m3 = st.columns(3)
-    m1.metric("Stream key", metrics.get("stream_key", "—"))
-    m2.metric("Queue depth", metrics.get("queue_length", 0))
-    m3.metric("Active workers", metrics.get("active_workers", 0))
+    m1.metric(
+        "Stream key",
+        metrics.get("stream_key", "—"),
+        help="Redis Streams key where Tab 3 tasks are published (Docket queue).",
+    )
+    m2.metric(
+        "Queue depth",
+        metrics.get("queue_length", 0),
+        help="Messages waiting in the stream — should drain as workers consume tasks.",
+    )
+    m3.metric(
+        "Active workers",
+        metrics.get("active_workers", 0),
+        help="RAK consumer processes in the worker group. Zero means Tab 3 tasks will not run.",
+    )
 
 
 def append_worker_logs(tasks: list[QueueTask], *, log_key: str = "queue_logs") -> None:

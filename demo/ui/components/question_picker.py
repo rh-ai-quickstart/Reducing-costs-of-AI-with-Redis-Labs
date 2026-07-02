@@ -18,6 +18,9 @@ class QuestionPickerConfig:
     ask_button_label: str
     ask_button_key: str
     custom_option: str = "— type your own —"
+    example_help: str = ""
+    query_help: str = ""
+    ask_button_help: str = ""
 
 
 def render_question_picker(
@@ -29,6 +32,7 @@ def render_question_picker(
         config.example_label,
         options=[config.custom_option, *examples],
         key=config.example_key,
+        help=config.example_help or None,
     )
     default_q = examples[0] if examples else ""
     if example != config.custom_option:
@@ -38,9 +42,15 @@ def render_question_picker(
         config.query_label,
         value=default_q,
         key=config.query_key,
+        help=config.query_help or None,
     )
 
-    if st.button(config.ask_button_label, type="primary", key=config.ask_button_key):
+    if st.button(
+        config.ask_button_label,
+        type="primary",
+        key=config.ask_button_key,
+        help=config.ask_button_help or None,
+    ):
         return user_query.strip()
 
     return ""

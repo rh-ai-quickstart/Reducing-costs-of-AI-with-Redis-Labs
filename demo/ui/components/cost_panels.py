@@ -23,11 +23,27 @@ def render_session_metrics(totals: SessionCostTotals) -> None:
     )
 
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("💰 Total saved", format_cost(totals.total_saved))
-    m2.metric("💸 Actual spend", format_cost(totals.actual_spend))
-    m3.metric("📊 Always-complex est.", format_cost(totals.baseline_spend))
+    m1.metric(
+        "💰 Total saved",
+        format_cost(totals.total_saved),
+        help="Cumulative savings vs. sending every question through the complex agent.",
+    )
+    m2.metric(
+        "💸 Actual spend",
+        format_cost(totals.actual_spend),
+        help="Sum of token costs for what actually ran (simple, cache hit, or complex).",
+    )
+    m3.metric(
+        "📊 Always-complex est.",
+        format_cost(totals.baseline_spend),
+        help="Counterfactual cost if every request used the complex model with full context.",
+    )
     deflected = totals.simple_count + totals.blocked_count + totals.cache_hit_count
-    m4.metric("🛡️ Deflected", f"{deflected}/{totals.request_count or 0}")
+    m4.metric(
+        "🛡️ Deflected",
+        f"{deflected}/{totals.request_count or 0}",
+        help="Requests handled without full complex generation (simple + blocked + cache hits).",
+    )
 
     if totals.request_count:
         c1, c2, c3, c4 = st.columns(4)

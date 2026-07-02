@@ -35,7 +35,12 @@ def render() -> None:
         "Confirms Redis, MaaS model gateways, and the RAK worker are live before running the demo."
     )
 
-    if st.button("Run Preflight Checks", type="primary", key="run_preflight"):
+    if st.button(
+        "Run Preflight Checks",
+        type="primary",
+        key="run_preflight",
+        help="Probe Redis PING, one-token calls to simple/complex MaaS endpoints, and RAK worker consumers.",
+    ):
         with st.spinner("Checking Redis, MaaS endpoints, and worker queue..."):
             st.session_state["preflight_results"] = run_preflight_checks()
 

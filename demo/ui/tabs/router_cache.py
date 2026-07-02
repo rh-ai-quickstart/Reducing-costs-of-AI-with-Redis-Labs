@@ -30,9 +30,23 @@ PRESETS = {
 def _render_preset_buttons() -> None:
     """One-click paths for simple, blocked, and complex (hit/miss) scenarios."""
     st.markdown("##### Test paths")
+    st.caption(
+        "Presets mirror the notebook walkthrough: simple FAQ, blocked injection, "
+        "complex cache miss, and a near-duplicate for cache hit."
+    )
     btn_cols = st.columns(len(PRESETS))
+    preset_help = {
+        "Simple": "Routes to the cheaper model — no agent or cache generation.",
+        "Blocked": "Off-topic prompt — semantic router rejects before any LLM call.",
+        "Complex (cache miss)": "Forces a cache miss so you see the full complex agent path.",
+        "Complex (cache hit)": "Semantically similar to the miss preset — should return a cached answer.",
+    }
     for col, (label, question) in zip(btn_cols, PRESETS.items()):
-        if col.button(label, key=f"t2_preset_{label}"):
+        if col.button(
+            label,
+            key=f"t2_preset_{label}",
+            help=preset_help.get(label),
+        ):
             RouterCacheState.queue_question(
                 question,
                 force_miss=label.startswith("Complex (cache miss)"),
@@ -41,13 +55,26 @@ def _render_preset_buttons() -> None:
 
 def _render_custom_input() -> None:
     """Free-text question input plus reset control."""
-    user_q = st.text_input("Or type your own question", key="t2_custom")
+    user_q = st.text_input(
+        "Or type your own question",
+        key="t2_custom",
+        help="Custom text runs through the same router → cache → agent pipeline as the presets.",
+    )
     col_send, col_reset = st.columns([1, 1])
 
     with col_send:
-        send = st.button("Send through pipeline", type="primary", key="t2_send")
+        send = st.button(
+            "Send through pipeline",
+            type="primary",
+            key="t2_send",
+            help="Classify with the semantic router, check the cache, then invoke the agent on miss.",
+        )
     with col_reset:
-        if st.button("Reset cost counters", key="t2_reset_cost"):
+        if st.button(
+            "Reset cost counters",
+            key="t2_reset_cost",
+            help="Clear session ROI totals and request history (does not delete Redis cache entries).",
+        ):
             RouterCacheState.reset_counters()
             st.rerun()
 
@@ -97,7 +124,11 @@ def _render_feedback_controls() -> None:
     )
     fb_col1, fb_col2 = st.columns(2)
     with fb_col1:
-        if st.button("👍 Approve for cache", key="t2_up"):
+        if st.button(
+            "👍 Approve for cache",
+            key="t2_up",
+            help="Explicitly store the last Q&A pair in the semantic cache as user-approved.",
+        ):
             submit_feedback(
                 RouterCacheState.get_pipeline(),
                 feedback_ctx["question"],
@@ -107,7 +138,11 @@ def _render_feedback_controls() -> None:
             st.success("Marked as approved in the semantic cache.")
             RouterCacheState.clear_feedback()
     with fb_col2:
-        if st.button("👎 Not helpful", key="t2_down"):
+        if st.button(
+            "👎 Not helpful",
+            key="t2_down",
+            help="Skip re-storing this answer (auto-cache may already have saved it).",
+        ):
             submit_feedback(
                 RouterCacheState.get_pipeline(),
                 feedback_ctx["question"],

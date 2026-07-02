@@ -30,9 +30,21 @@ def _batch_is_complete(tasks: list) -> bool:
 
 def _render_enqueue_controls() -> bool:
     """Return True when a new batch was enqueued (caller should rerun)."""
-    count = st.slider("Questions to fire", min_value=5, max_value=10, value=8, key="t3_count")
+    count = st.slider(
+        "Questions to fire",
+        min_value=5,
+        max_value=10,
+        value=8,
+        key="t3_count",
+        help="How many preset production questions to enqueue in one batch to Redis Streams.",
+    )
 
-    if not st.button("Simulate Production Traffic", type="primary", key="t3_simulate"):
+    if not st.button(
+        "Simulate Production Traffic",
+        type="primary",
+        key="t3_simulate",
+        help="Enqueue tasks to the insurance queue — RAK workers process them asynchronously.",
+    ):
         return False
 
     questions = PRODUCTION_QUESTIONS[:count]

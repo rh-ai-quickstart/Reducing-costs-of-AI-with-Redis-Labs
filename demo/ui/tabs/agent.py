@@ -23,6 +23,9 @@ _QUESTION_PICKER = QuestionPickerConfig(
     query_key="t1_query",
     ask_button_label="Ask Agent",
     ask_button_key="t1_ask",
+    example_help="Sample insurance claims and policy questions that exercise vector search tools.",
+    query_help="Edit before sending — this tab always uses the complex model (no router or cache).",
+    ask_button_help="Run the LangGraph ReAct agent with Redis-backed FAQ and policy tools.",
 )
 
 
