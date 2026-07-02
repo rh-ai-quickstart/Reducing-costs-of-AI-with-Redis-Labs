@@ -118,6 +118,49 @@ deploy-without-redis-enterprise-olm: ## deploy with redis.enterprise.olm.enabled
 	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
 		HELM_EXTRA_ARGS='--set redis.enterprise.olm.enabled=false'
 
+.PHONY: deploy-with-roi-dashboard
+deploy-with-roi-dashboard: ## deploy notebook + ROI dashboard + RAK worker
+	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
+		HELM_EXTRA_ARGS='--set roiDashboard.enabled=true --set insuranceWorker.enabled=true $(HELM_EXTRA_ARGS)'
+
+.PHONY: deploy-dashboard-only
+deploy-dashboard-only: ## deploy Redis + ROI dashboard + RAK worker (no notebook)
+	@$(MAKE) -f "$(abspath $(lastword $(MAKEFILE_LIST)))" deploy \
+		HELM_EXTRA_ARGS='--set notebook.enabled=false --set roiDashboard.enabled=true --set insuranceWorker.enabled=true $(HELM_EXTRA_ARGS)'
+
+.PHONY: route-roi-dashboard
+route-roi-dashboard: ## Print the OpenShift Route URL for the ROI dashboard
+	@$(KUBECTL) get route -n $(NAMESPACE) -l app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/component=roi-dashboard -o jsonpath='https://{.items[0].spec.host}{"\n"}' 2>/dev/null || \
+		echo "No Route found. Try: make -f deploy/helm/Makefile logs-roi-dashboard NAMESPACE=$(NAMESPACE)"
+
+.PHONY: logs-roi-dashboard
+logs-roi-dashboard: ## Logs from the roi-dashboard container
+	@POD=$$($(KUBECTL) get pods -n $(NAMESPACE) -l app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/component=roi-dashboard -o jsonpath='{.items[0].metadata.name}' 2>/dev/null); \
+	if [ -z "$$POD" ]; then \
+		echo "No roi-dashboard pod found in $(NAMESPACE) (is roiDashboard.enabled=true?)."; \
+	else \
+		$(KUBECTL) logs -n $(NAMESPACE) "$$POD" -c roi-dashboard --tail=200 -f; \
+	fi
+
+.PHONY: logs-insurance-worker
+logs-insurance-worker: ## Logs from the RAK insurance worker container
+	@POD=$$($(KUBECTL) get pods -n $(NAMESPACE) -l app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/component=insurance-worker -o jsonpath='{.items[0].metadata.name}' 2>/dev/null); \
+	if [ -z "$$POD" ]; then \
+		echo "No insurance-worker pod found in $(NAMESPACE) (is insuranceWorker.enabled=true?)."; \
+	else \
+		$(KUBECTL) logs -n $(NAMESPACE) "$$POD" -c insurance-worker --tail=200 -f; \
+	fi
+
+.PHONY: logs-roi-clone
+logs-roi-clone: ## Logs from git-sync-demo init container on the roi-dashboard pod
+	@POD=$$($(KUBECTL) get pods -n $(NAMESPACE) -l app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/component=roi-dashboard -o jsonpath='{.items[0].metadata.name}' 2>/dev/null); \
+	if [ -z "$$POD" ]; then \
+		echo "No roi-dashboard pod found in $(NAMESPACE) (is roiDashboard.enabled=true?)."; \
+	else \
+		$(KUBECTL) logs -n $(NAMESPACE) "$$POD" -c git-sync-demo --tail=200 2>/dev/null || \
+		echo "No git-sync-demo init logs (gitSync disabled or init not run yet). Pod: $$POD"; \
+	fi
+
 .PHONY: logs-clone
 logs-clone: ## Logs from git-sync-demo init container on the notebook pod
 	@POD=$$($(KUBECTL) get pods -n $(NAMESPACE) -l app.kubernetes.io/instance=$(RELEASE_NAME),app.kubernetes.io/component=notebook -o jsonpath='{.items[0].metadata.name}' 2>/dev/null); \

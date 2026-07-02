@@ -7,6 +7,8 @@ Reduce LLM costs with intelligent routing and caching with Redis Enterprise&reg;
 - [Overview](#overview)
   - [Architecture](#architecture)
   - [Production view](#production-view)
+- [What is getting deployed](#what-is-getting-deployed)
+- [Streamlit demo UI](#streamlit-demo-ui)
 - [Requirements](#requirements)
   - [Minimum hardware requirements](#minimum-hardware-requirements)
   - [Minimum software requirements](#minimum-software-requirements)
@@ -127,6 +129,47 @@ router --o|complex| redis
 
 ```
 
+## What is getting deployed
+
+The Helm chart under **`deploy/helm`** (release name **`redis-notebook`**) provisions the full quickstart stack on OpenShift. A plain **`make deploy`** installs the core pieces; optional targets add operators or the conference demo UI.
+
+| Component | Default | Purpose |
+|-----------|---------|---------|
+| **Jupyter workbench** | On (`notebook.enabled`) | Kubeflow **`Notebook`** CR (OpenShift AI) or plain **`Deployment`** + **`Route`** (`notebook.kind=Deployment`). Git-sync copies **`demo/`** into the workspace so you can run the notebooks. |
+| **Redis Enterprise** | On (`redis.useRedisEnterpriseOperator`) | **`RedisEnterpriseCluster`** + **`RedisEnterpriseDatabase`** for vector search, semantic router, cache, LangGraph memory, and work queues. Alternatives: OT-CONTAINER-KIT operator + Redis CR, or external **`REDIS_URL`**. |
+| **ROI Streamlit dashboard** | On (`roiDashboard.enabled`) | Multi-tab UI at **`demo/app.py`** on port **8501** with its own PVC and OpenShift Route — the interactive walkthrough of router, cache, and production queue patterns. |
+| **Insurance RAK worker** | On (`insuranceWorker.enabled`) | Background **`rak worker`** Deployment that consumes Tab 3 tasks from Redis Streams (`insurance_worker:tasks`). |
+| **Git-sync init containers** | On | Clone this repo and copy **`demo/`** into notebook and dashboard pods at startup. |
+| **RBAC** | On | ServiceAccount + namespace **`edit`** RoleBinding for the workbench. |
+
+**Not installed by default** (enable via Makefile or `values.yaml`):
+
+- **Redis Enterprise operator via OLM** — `make deploy-redis-enterprise-olm` or `redis.enterprise.olm.enabled: true`
+- **Red Hat OpenShift AI operator via OLM** — `make deploy-openshift-ai-operator` or `openshiftAI.operator.enabled: true`
+- **Standalone production API** — the chart wires notebooks, Redis, the Streamlit dashboard, and the worker; it does not deploy a separate FastAPI ingress layer.
+
+**Secrets:** create **`deploy/helm/values-secret.yaml`** from **`values-secret.example.yaml`** with at least **`secrets.model.apiKey`**. The chart injects **`SIMPLE_MODEL_*`**, **`COMPLEX_MODEL_*`**, and **`REDIS_URL`** into the notebook, dashboard, and worker.
+
+**Useful deploy targets:**
+
+```bash
+make -f deploy/helm/Makefile deploy-all                  # notebook + Redis + dashboard + worker (defaults)
+```
+
+Full chart layout, operator modes, and troubleshooting: **[deploy/README.md](deploy/README.md)**.
+
+## Streamlit demo UI
+
+The **Cost-Optimized Insurance Assistant** (`demo/app.py`) mirrors the four notebooks as interactive tabs — readiness checks, baseline agent, router + cache, and production queue. Run it locally with Streamlit or open the OpenShift Route after deploy.
+
+```bash
+cd demo
+pip install -r requirements.txt --extra-index-url https://pypi.org/simple
+streamlit run app.py
+```
+
+Tab-by-tab walkthrough, preset buttons, cost metrics, and worker requirements: **[docs/streamlit-ui-guide.md](docs/streamlit-ui-guide.md)**.
+
 ## Requirements
 
 ### Minimum hardware requirements
@@ -169,7 +212,7 @@ cp deploy/helm/values-secret.example.yaml deploy/helm/values-secret.yaml
 # Edit deploy/helm/values-secret.yaml
 
 make -f deploy/helm/Makefile help
-make -f deploy/helm/Makefile deploy
+make -f deploy/helm/Makefile deploy-all
 # Optional: chart-managed Redis Enterprise operator OLM
 # make -f deploy/helm/Makefile deploy-all
 ```

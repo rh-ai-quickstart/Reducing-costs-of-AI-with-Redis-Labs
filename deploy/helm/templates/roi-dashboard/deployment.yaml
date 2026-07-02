@@ -1,0 +1,163 @@
+{{- if .Values.roiDashboard.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "redis-notebook.roiDashboardName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "redis-notebook.roiDashboardLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "redis-notebook.roiDashboardSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "redis-notebook.roiDashboardSelectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "redis-notebook.serviceAccountName" . }}
+      {{- if or .Values.roiDashboard.gitSync.enabled .Values.redis.useRedisEnterpriseOperator }}
+      initContainers:
+{{- if .Values.roiDashboard.gitSync.enabled }}
+{{ include "redis-notebook.roiDashboardGitSyncInitContainer" . | nindent 8 }}
+{{- end }}
+{{- if .Values.redis.useRedisEnterpriseOperator }}
+        - name: wait-redis-db-secret
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              echo "Waiting for Redis Enterprise DB secret {{ include "redis-notebook.redisEnterpriseSecretName" . }} (operator creates it when REDB is ready)..."
+              i=0
+              while [ "$i" -lt 720 ]; do
+                if [ -f /redis-secret/password ] && [ -s /redis-secret/password ]; then
+                  echo "Secret is populated."
+                  exit 0
+                fi
+                i=$((i + 1))
+                sleep 5
+              done
+              echo "Timed out after 1h. Check: oc get rec redb -n {{ .Release.Namespace }}; oc describe redb {{ .Values.redis.enterprise.database.name }} -n {{ .Release.Namespace }}"
+              exit 1
+          volumeMounts:
+            - name: redis-enterprise-db-secret-wait
+              mountPath: /redis-secret
+              readOnly: true
+{{- end }}
+      {{- end }}
+      containers:
+        - name: roi-dashboard
+          image: {{ .Values.roiDashboard.image.repository }}:{{ .Values.roiDashboard.image.tag }}
+          imagePullPolicy: {{ .Values.roiDashboard.image.pullPolicy }}
+          workingDir: /workspace
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              export PATH="/workspace/.local/bin:${PATH}"
+              pip install --no-cache-dir --user -r demo/requirements.txt
+              exec streamlit run demo/app.py \
+                --server.port=8501 \
+                --server.address=0.0.0.0 \
+                --server.headless=true \
+                --browser.gatherUsageStats=false
+          env:
+            - name: HOME
+              value: /workspace
+            - name: PYTHONPATH
+              value: /workspace/demo:/workspace/demo/shared:/workspace/.local/lib/python3.12/site-packages
+            {{- if .Values.roiDashboard.pipExtraIndexUrl }}
+            - name: PIP_EXTRA_INDEX_URL
+              value: {{ .Values.roiDashboard.pipExtraIndexUrl | quote }}
+            {{- end }}
+            - name: MODEL_API_KEY
+              value: {{ .Values.secrets.model.apiKey | quote }}
+            - name: MODEL_ENDPOINT
+              value: {{ .Values.secrets.model.endpoint | quote }}
+            - name: SIMPLE_MODEL_ENDPOINT
+              value: {{ .Values.secrets.model.simpleEndpoint | default .Values.secrets.model.endpoint | default .Values.secrets.model.complexEndpoint | quote }}
+            - name: COMPLEX_MODEL_ENDPOINT
+              value: {{ .Values.secrets.model.complexEndpoint | default .Values.secrets.model.endpoint | default .Values.secrets.model.simpleEndpoint | quote }}
+            - name: SIMPLE_MODEL_KEY
+              value: {{ .Values.secrets.model.simpleApiKey | default .Values.secrets.model.apiKey | quote }}
+            - name: COMPLEX_MODEL_KEY
+              value: {{ .Values.secrets.model.complexApiKey | default .Values.secrets.model.apiKey | quote }}
+            - name: COMPLEX_MODEL_NAME
+              value: {{ .Values.secrets.model.complexModelName | quote }}
+            - name: SIMPLE_MODEL_NAME
+              value: {{ .Values.secrets.model.simpleModelName | quote }}
+            {{- if .Values.roiDashboard.plainComplex }}
+            - name: INSURANCE_PLAIN_COMPLEX
+              value: "true"
+            {{- end }}
+            - name: ROI_SIMPLE_INPUT_COST_PER_MILLION
+              value: {{ .Values.roiDashboard.modelPricing.simple.inputPerMillion | quote }}
+            - name: ROI_SIMPLE_OUTPUT_COST_PER_MILLION
+              value: {{ .Values.roiDashboard.modelPricing.simple.outputPerMillion | quote }}
+            - name: ROI_COMPLEX_INPUT_COST_PER_MILLION
+              value: {{ .Values.roiDashboard.modelPricing.complex.inputPerMillion | quote }}
+            - name: ROI_COMPLEX_OUTPUT_COST_PER_MILLION
+              value: {{ .Values.roiDashboard.modelPricing.complex.outputPerMillion | quote }}
+            {{- include "redis-notebook.redisEnv" . | nindent 12 }}
+          ports:
+            - containerPort: 8501
+              name: streamlit
+              protocol: TCP
+          resources:
+            limits:
+              cpu: {{ .Values.roiDashboard.resources.limits.cpu | quote }}
+              memory: {{ .Values.roiDashboard.resources.limits.memory | quote }}
+            requests:
+              cpu: {{ .Values.roiDashboard.resources.requests.cpu | quote }}
+              memory: {{ .Values.roiDashboard.resources.requests.memory | quote }}
+          startupProbe:
+            httpGet:
+              scheme: HTTP
+              path: /_stcore/health
+              port: streamlit
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 30
+          livenessProbe:
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+            httpGet:
+              scheme: HTTP
+              path: /_stcore/health
+              port: streamlit
+          readinessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+            httpGet:
+              scheme: HTTP
+              path: /_stcore/health
+              port: streamlit
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+      volumes:
+        {{- if .Values.redis.useRedisEnterpriseOperator }}
+        - name: redis-enterprise-db-secret-wait
+          secret:
+            secretName: {{ include "redis-notebook.redisEnterpriseSecretName" . }}
+            optional: true
+        {{- end }}
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{ include "redis-notebook.fullname" . }}-roi-dashboard-pvc
+{{- end }}

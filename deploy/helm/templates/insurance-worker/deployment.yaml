@@ -1,0 +1,86 @@
+{{- if .Values.insuranceWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "redis-notebook.insuranceWorkerName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "redis-notebook.insuranceWorkerLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.insuranceWorker.replicas }}
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "redis-notebook.insuranceWorkerSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "redis-notebook.insuranceWorkerSelectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "redis-notebook.serviceAccountName" . }}
+      {{- if or .Values.insuranceWorker.gitSync.enabled .Values.redis.useRedisEnterpriseOperator }}
+      initContainers:
+{{- if .Values.insuranceWorker.gitSync.enabled }}
+{{ include "redis-notebook.insuranceWorkerGitSyncInitContainer" . | nindent 8 }}
+{{- end }}
+{{- if .Values.redis.useRedisEnterpriseOperator }}
+{{ include "redis-notebook.waitRedisEnterpriseSecretInitContainer" . | nindent 8 }}
+{{- end }}
+      {{- end }}
+      containers:
+        - name: insurance-worker
+          image: {{ .Values.insuranceWorker.image.repository }}:{{ .Values.insuranceWorker.image.tag }}
+          imagePullPolicy: {{ .Values.insuranceWorker.image.pullPolicy }}
+          workingDir: /workspace/demo/shared
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              export PATH="/workspace/.local/bin:${PATH}"
+              pip install --no-cache-dir --user -r /workspace/demo/requirements.txt
+              echo "Starting RAK worker (queue={{ .Values.insuranceWorker.queueName }}, concurrency={{ .Values.insuranceWorker.concurrency }})..."
+              exec rak worker \
+                --name {{ .Values.insuranceWorker.queueName }} \
+                --tasks insurance_worker:tasks \
+                --concurrency {{ .Values.insuranceWorker.concurrency }}
+          env:
+            - name: HOME
+              value: /workspace
+            - name: PYTHONPATH
+              value: /workspace/demo/shared:/workspace/.local/lib/python3.12/site-packages
+            {{- if .Values.insuranceWorker.pipExtraIndexUrl }}
+            - name: PIP_EXTRA_INDEX_URL
+              value: {{ .Values.insuranceWorker.pipExtraIndexUrl | quote }}
+            {{- end }}
+            {{- include "redis-notebook.modelEnv" . | nindent 12 }}
+            - name: ROI_SIMPLE_INPUT_COST_PER_MILLION
+              value: {{ .Values.roiDashboard.modelPricing.simple.inputPerMillion | quote }}
+            - name: ROI_SIMPLE_OUTPUT_COST_PER_MILLION
+              value: {{ .Values.roiDashboard.modelPricing.simple.outputPerMillion | quote }}
+            - name: ROI_COMPLEX_INPUT_COST_PER_MILLION
+              value: {{ .Values.roiDashboard.modelPricing.complex.inputPerMillion | quote }}
+            - name: ROI_COMPLEX_OUTPUT_COST_PER_MILLION
+              value: {{ .Values.roiDashboard.modelPricing.complex.outputPerMillion | quote }}
+            {{- include "redis-notebook.redisEnv" . | nindent 12 }}
+          resources:
+            limits:
+              cpu: {{ .Values.insuranceWorker.resources.limits.cpu | quote }}
+              memory: {{ .Values.insuranceWorker.resources.limits.memory | quote }}
+            requests:
+              cpu: {{ .Values.insuranceWorker.resources.requests.cpu | quote }}
+              memory: {{ .Values.insuranceWorker.resources.requests.memory | quote }}
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+      volumes:
+        {{- if .Values.redis.useRedisEnterpriseOperator }}
+        - name: redis-enterprise-db-secret-wait
+          secret:
+            secretName: {{ include "redis-notebook.redisEnterpriseSecretName" . }}
+            optional: true
+        {{- end }}
+        - name: workspace
+          emptyDir: {}
+{{- end }}

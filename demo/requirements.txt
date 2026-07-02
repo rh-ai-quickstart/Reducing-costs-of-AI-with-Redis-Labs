@@ -1,0 +1,13 @@
+streamlit>=1.33.0
+langchain-openai>=0.2.0
+langchain-core>=0.3.0
+langchain>=1.0.0
+langgraph>=0.2.0
+langgraph-checkpoint-redis>=0.4.0
+openai>=1.40
+python-dotenv
+redisvl>=0.6.0,<1.0.0
+redis>=6.2.0,<7.0.0
+redis-agent-kit>=0.1.0
+nest-asyncio>=1.5.0
+sentence-transformers

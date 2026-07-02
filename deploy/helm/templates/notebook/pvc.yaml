@@ -1,4 +1,4 @@
-{{- if and .Values.notebook.enabled }}
+{{- if .Values.notebook.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -17,7 +17,7 @@ spec:
   resources:
     requests:
       storage: {{ .Values.notebook.storage.size }}
-  {{- if .Values.notebook.storage.storageClassName }}
-  storageClassName: {{ .Values.notebook.storage.storageClassName }}
+  {{- with .Values.notebook.storage.storageClassName }}
+  storageClassName: {{ . }}
   {{- end }}
 {{- end }}
