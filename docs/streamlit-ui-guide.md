@@ -175,6 +175,8 @@ When you submit a question, the UI:
 3. Streams the final answer into the chat column.
 4. Records token usage and estimated cost in **Under the Hood**.
 
+![Base Line Model Cost and Behavior](./images/baseline-expirience.png)
+
 Nothing is classified and nothing is cached — every submission pays the full complex-model price. That is intentional. After you try Tab 2, come back here mentally: *"This is what every request would cost without routing."*
 
 The metrics panel updates only after a run completes. If tools fired, you will see which vector searches ran; that context is part of why the complex path costs more than a single chat completion.
@@ -186,6 +188,8 @@ The metrics panel updates only after a run completes. If tools fired, you will s
 ## ⚖️ 02. Router & Cache
 
 This tab **changes where your question goes** before any LLM work happens.
+
+![Const Analysis](images/cost-saving-analysis.png)
 
 ### What happens on each submit
 
@@ -223,8 +227,6 @@ After each run, the session cost panel **recalculates ROI**: it compares what yo
 
 Thumbs up / down on the last answer let you explicitly approve or reject re-storing in the semantic cache. With auto-cache on, approval is mostly confirmatory; thumbs down skips an extra write if the answer was not helpful.
 
-![Base Line Model Cost and Behavior](./images/baseline-expirience.png)
-
 ---
 
 ## 🏭 03. Production Queue
@@ -242,8 +244,6 @@ When you click **Simulate Production Traffic**:
 From the UI's perspective, nothing blocks on model latency. From the worker's perspective, each task is identical to a Tab 2 pipeline run — same router, same cache, same agent — just executed in a separate pod/process that can scale horizontally.
 
 If **Active workers** stays at zero, tasks pile up in the stream until you deploy `insuranceWorker` or run `rak worker --name insurance --tasks insurance_worker:tasks --concurrency 4` locally. Tab 0's worker probe catches this before you waste time wondering why nothing moves.
-
-![Const Analysis](images/cost-saving-analysis.png)
 
 ![Simulate Production Traffic](images/production-worker-queue.png)
 
