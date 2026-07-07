@@ -7,7 +7,6 @@ import streamlit as st
 from services.constants import TERMINAL_TASK_STATUSES
 from services.queue_client import (
     PRODUCTION_QUESTIONS,
-    QUEUE_CLIENT_BUILD,
     QUEUE_NAME,
     WORKER_TASK_NAME,
     enqueue_batch,
@@ -118,8 +117,7 @@ def _render_live_monitor() -> None:
 def render() -> None:
     st.header("Production Topology: Redis Agent Kit Workers")
     st.caption(
-        "Same pipeline as Tab 2 — decoupled via Redis Streams so the UI never blocks on inference. "
-        f"Queue client build: `{QUEUE_CLIENT_BUILD}`."
+        "Same pipeline as Tab 2 — decoupled via Redis Streams so the UI never blocks on inference."
     )
 
     QueueTabState.ensure_defaults()

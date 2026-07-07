@@ -23,7 +23,6 @@ os.environ.setdefault("INSURANCE_AUTO_CACHE", "true")
 
 from config import load_config  # noqa: E402
 from ui.registry import DASHBOARD_TABS  # noqa: E402
-from ui.styles import DASHBOARD_CSS  # noqa: E402
 
 load_config()
 
@@ -32,7 +31,6 @@ st.set_page_config(
     layout="wide",
     page_icon="🛡️",
 )
-st.markdown(DASHBOARD_CSS, unsafe_allow_html=True)
 
 st.markdown(
     '<p class="dashboard-title">🛡️ Insurance Claims Assistant</p>',

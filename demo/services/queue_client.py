@@ -20,8 +20,6 @@ T = TypeVar("T")
 
 QUEUE_NAME = "insurance"
 WORKER_TASK_NAME = "run_agent"
-# Bump when verifying the ROI dashboard picked up a new build.
-QUEUE_CLIENT_BUILD = "sync-refresh-v3"
 
 PRODUCTION_QUESTIONS = [
     "How do I reset my online account password?",
