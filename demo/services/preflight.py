@@ -1,4 +1,4 @@
-"""Infrastructure preflight checks for Tab 0.
+"""Infrastructure preflight checks for Tab 1 (readiness).
 
 Validates Redis, MaaS model endpoints, and the RAK insurance worker before the
 demo UI runs live requests.
@@ -151,7 +151,7 @@ def check_rak_worker() -> CheckResult:
 
 
 def run_preflight_checks() -> list[CheckResult]:
-    """Run all Tab 0 infrastructure checks."""
+    """Run all Tab 1 (readiness) infrastructure checks."""
     return [
         check_redis(),
         check_model("simple"),

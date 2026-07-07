@@ -37,7 +37,7 @@ The same chart installs **Redis** for the notebooks in one of three modes (see *
 
 - **No standalone production API** for the insurance demo — only the workbench and Redis wiring for the notebooks.
 - **Optional Insurance demo dashboard** — set **`roiDashboard.enabled: true`** to deploy the Streamlit app (`demo/app.py`) on port **8501** with its own PVC, Route, and the same **`secrets.model.*`** + **`REDIS_URL`** as the notebook.
-- **Optional RAK insurance worker** — set **`insuranceWorker.enabled: true`** (default when using the dashboard) to process Tab 3 queue tasks via **`rak worker --tasks insurance_worker:tasks`**.
+- **Optional RAK insurance worker** — set **`insuranceWorker.enabled: true`** (default when using the dashboard) to process Tab 4 (Production Queue) tasks via **`rak worker --tasks insurance_worker:tasks`**.
 - **No automatic full “OpenShift AI product” rollout** beyond the optional **`rhods-operator`** Subscription (cluster admins may still need to approve install plans, configure DSC, GPU nodes, etc.).
 - **No Redis Enterprise operator** unless you enable **`redis.enterprise.olm`** or install **`redis-enterprise-operator-cert`** from OperatorHub into the release namespace yourself.
 - **No Kubeflow notebook-controller** — `notebook.kind=Notebook` assumes RHOAI/ODH already provides it.
@@ -66,7 +66,7 @@ The same chart installs **Redis** for the notebooks in one of three modes (see *
 | `helm/Chart.lock` / `helm/charts/*.tgz` | Locked dependency versions (run `make -f deploy/helm/Makefile deps` after changing `Chart.yaml` or enabling the operator path). |
 | `helm/values.yaml` | Notebook, git clone, Redis mode (Enterprise vs OT vs external); non-secret defaults. |
 | `helm/values-secret.example.yaml` | Template for **`values-secret.yaml`** (copy locally; gitignored). Holds `secrets.model.*` and optional `secrets.redis.url`. |
-| `helm/templates/` | `_helpers.tpl`, `NOTES.txt`, **`notebook/`**, **`roi-dashboard/`**, **`insurance-worker/`** (optional RAK worker for Tab 3), **`redis-enterprise/`** (OLM + REC + REDB), **`openshift-ai/`** (optional Namespace / OperatorGroup / Subscription for `rhods-operator`), **`rbac/`**. |
+| `helm/templates/` | `_helpers.tpl`, `NOTES.txt`, **`notebook/`**, **`roi-dashboard/`**, **`insurance-worker/`** (optional RAK worker for Tab 4), **`redis-enterprise/`** (OLM + REC + REDB), **`openshift-ai/`** (optional Namespace / OperatorGroup / Subscription for `rhods-operator`), **`rbac/`**. |
 | `helm/Makefile` | All deploy automation: `help`, `deps`, `lint`, `template`, `check-secrets`, `validate-secrets`, `create-namespace`, `deploy`, OLM variants, `logs-clone`, `uninstall` (see table below). |
 | `helm/scripts/validate_secrets.py` | Merges values like Helm and fails on empty/null **`secrets.model.*`** (and **`secrets.redis.url`** when using external Redis only). |
 
@@ -122,7 +122,7 @@ make -f deploy/helm/Makefile deploy NAMESPACE=my-project RELEASE_NAME=my-release
 
 ## ROI / Request Journey dashboard (Streamlit)
 
-Optional conference demo UI at **`demo/app.py`**. When enabled, the chart deploys:
+Optional five-tab conference demo UI at **`demo/app.py`** (Tab 0 = in-app guide, Tabs 1–4 = readiness through production queue). When enabled, the chart deploys:
 
 - **Deployment** — `python:3.12-slim`, installs deps at pod start, runs Streamlit on **8501**
 - **Dedicated PVC** — separate from the notebook so both workloads can run together
@@ -159,7 +159,7 @@ make -f deploy/helm/Makefile deploy-with-roi-dashboard \
 
 Tune animation speed with **`roiDashboard.journeyStageDelayMs`** (default `400`).
 
-## Insurance worker (RAK — Tab 3)
+## Insurance worker (RAK — Tab 4)
 
 When **`insuranceWorker.enabled: true`** (default in `values.yaml`), the chart deploys a separate **Deployment** that runs:
 
@@ -177,7 +177,7 @@ make -f deploy/helm/Makefile logs-insurance-worker NAMESPACE=redis-notebook
 
 **Scale throughput** — raise **`insuranceWorker.replicas`** or **`insuranceWorker.concurrency`** in `values.yaml`.
 
-Disable if you only need Tabs 0–2:
+Disable if you only need Tabs 0–3 (guide through router & cache, no production queue):
 
 ```yaml
 insuranceWorker:

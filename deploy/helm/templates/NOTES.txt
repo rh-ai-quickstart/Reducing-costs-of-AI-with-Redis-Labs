@@ -95,7 +95,7 @@ Tail Streamlit logs with:
 {{- end }}
 {{- if .Values.insuranceWorker.enabled }}
 
-Redis Agent Kit insurance worker is enabled (Tab 3 — Production Queue).
+Redis Agent Kit insurance worker is enabled (Tab 4 — Production Queue).
 
 Wait for the worker pod:
   oc rollout status deployment/{{ include "redis-notebook.insuranceWorkerName" . }} -n {{ .Release.Namespace }}

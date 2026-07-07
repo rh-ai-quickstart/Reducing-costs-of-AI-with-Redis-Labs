@@ -1,4 +1,4 @@
-"""Session keys and accessors for Tab 3 (production queue monitor)."""
+"""Session keys and accessors for Tab 4 (production queue monitor)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from services.queue_client import QueueTask
 
 
 class QueueTabState:
-    """Tracks enqueued tasks, worker logs, and live-polling flag for Tab 3."""
+    """Tracks enqueued tasks, worker logs, and live-polling flag for Tab 4."""
 
     TASKS = "queue_tasks"
     LOGS = "queue_logs"

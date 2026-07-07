@@ -1,4 +1,4 @@
-"""Session keys and accessors for Tab 1 (baseline complex agent)."""
+"""Session keys and accessors for Tab 2 (complex baseline agent)."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ from services.agent_runner import AgentRunResult
 
 
 class AgentTabState:
-    """Centralizes Tab 1 `st.session_state` keys to avoid string drift."""
+    """Centralizes Tab 2 `st.session_state` keys to avoid string drift."""
 
-    RUNNING = "t1_running"
-    QUESTION = "t1_question"
-    LAST_RESULT = "t1_last_result"
+    RUNNING = "t2_running"
+    QUESTION = "t2_question"
+    LAST_RESULT = "t2_last_result"
 
     @classmethod
     def start_run(cls, question: str) -> None:

@@ -137,8 +137,8 @@ The Helm chart under **`deploy/helm`** (release name **`redis-notebook`**) provi
 |-----------|---------|---------|
 | **Jupyter workbench** | On (`notebook.enabled`) | Kubeflow **`Notebook`** CR (OpenShift AI) or plain **`Deployment`** + **`Route`** (`notebook.kind=Deployment`). Git-sync copies **`demo/`** into the workspace so you can run the notebooks. |
 | **Redis Enterprise** | On (`redis.useRedisEnterpriseOperator`) | **`RedisEnterpriseCluster`** + **`RedisEnterpriseDatabase`** for vector search, semantic router, cache, LangGraph memory, and work queues. Alternatives: OT-CONTAINER-KIT operator + Redis CR, or external **`REDIS_URL`**. |
-| **ROI Streamlit dashboard** | On (`roiDashboard.enabled`) | Multi-tab UI at **`demo/app.py`** on port **8501** with its own PVC and OpenShift Route — the interactive walkthrough of router, cache, and production queue patterns. |
-| **Insurance RAK worker** | On (`insuranceWorker.enabled`) | Background **`rak worker`** Deployment that consumes Tab 3 tasks from Redis Streams (`insurance_worker:tasks`). |
+| **ROI Streamlit dashboard** | On (`roiDashboard.enabled`) | Five-tab UI at **`demo/app.py`** on port **8501** (Tab 0 = in-app guide; Tabs 1–4 = readiness through production queue) with its own PVC and OpenShift Route. |
+| **Insurance RAK worker** | On (`insuranceWorker.enabled`) | Background **`rak worker`** Deployment that consumes Tab 4 (Production Queue) tasks from Redis Streams (`insurance_worker:tasks`). |
 | **Git-sync init containers** | On | Clone this repo and copy **`demo/`** into notebook and dashboard pods at startup. |
 | **RBAC** | On | ServiceAccount + namespace **`edit`** RoleBinding for the workbench. |
 
@@ -160,7 +160,7 @@ Full chart layout, operator modes, and troubleshooting: **[deploy/README.md](dep
 
 ## Streamlit demo UI
 
-The **Cost-Optimized Insurance Assistant** (`demo/app.py`) mirrors the four notebooks as interactive tabs — readiness checks, baseline agent, router + cache, and production queue. Run it locally with Streamlit or open the OpenShift Route after deploy.
+The **Cost-Optimized Insurance Assistant** (`demo/app.py`) is a five-tab Streamlit dashboard: an in-app **UI Guide** (Tab 0) plus four interactive scenarios that mirror the notebooks — readiness checks, baseline agent, router + cache, and production queue. Run it locally with Streamlit or open the OpenShift Route after deploy.
 
 ```bash
 cd demo
@@ -168,7 +168,15 @@ pip install -r requirements.txt --extra-index-url https://pypi.org/simple
 streamlit run app.py
 ```
 
-Tab-by-tab walkthrough, preset buttons, cost metrics, and worker requirements: **[docs/streamlit-ui-guide.md](docs/streamlit-ui-guide.md)**.
+| Tab | Label | Notebook |
+|-----|-------|----------|
+| 0 | 📖 UI Guide | — (renders `docs/embeded_guide.md`) |
+| 1 | 🚀 Readiness Check | `00_initialization.ipynb` |
+| 2 | 🤖 Complex Agent | `01_agent.ipynb` |
+| 3 | ⚖️ Router & Cache | `02_router_cache.ipynb` |
+| 4 | 🏭 Production Queue | `03_async_work_queue.ipynb` |
+
+Tab-by-tab walkthrough, preset buttons, cost metrics, and worker requirements: **[docs/streamlit-ui-guide.md](docs/streamlit-ui-guide.md)** (in-app Tab 0 renders **[docs/embeded_guide.md](docs/embeded_guide.md)**).
 
 ## Requirements
 

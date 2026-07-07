@@ -1,4 +1,4 @@
-"""Complex LangGraph agent runner with streaming for Tab 1."""
+"""Complex LangGraph agent runner with streaming for Tab 2 (complex agent)."""
 
 from __future__ import annotations
 

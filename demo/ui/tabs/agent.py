@@ -1,4 +1,4 @@
-"""Tab 1 — Complex baseline agent (always-expensive path)."""
+"""Tab 2 — Complex baseline agent (always-expensive path)."""
 
 from __future__ import annotations
 
@@ -18,11 +18,11 @@ EXAMPLE_QUESTIONS = [
 
 _QUESTION_PICKER = QuestionPickerConfig(
     example_label="Example complex questions",
-    example_key="t1_example",
+    example_key="t2_example",
     query_label="Your question",
-    query_key="t1_query",
+    query_key="t2_query",
     ask_button_label="Ask Agent",
-    ask_button_key="t1_ask",
+    ask_button_key="t2_ask",
     example_help="Sample insurance claims and policy questions that exercise vector search tools.",
     query_help="Edit before sending — this tab always uses the complex model (no router or cache).",
     ask_button_help="Run the LangGraph ReAct agent with Redis-backed FAQ and policy tools.",
@@ -46,7 +46,7 @@ def _render_chat_column() -> None:
         with st.spinner("Agent thinking..."):
             result = run_complex_agent(
                 question,
-                thread_id="ui-tab1-agent",
+                thread_id="ui-tab2-agent",
                 body_placeholder=body,
                 tools_placeholder=tools_box,
             )

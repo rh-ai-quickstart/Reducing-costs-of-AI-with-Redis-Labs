@@ -1,4 +1,4 @@
-"""Shared preset + free-text question input used by agent and router tabs."""
+"""Shared preset + free-text question input used by Tabs 2 and 3."""
 
 from __future__ import annotations
 

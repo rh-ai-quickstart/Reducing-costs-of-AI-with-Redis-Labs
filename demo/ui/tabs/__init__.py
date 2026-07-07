@@ -1,5 +1,5 @@
-"""Dashboard tab modules — one `render()` per notebook chapter."""
+"""Dashboard tab modules — guide plus one `render()` per notebook chapter."""
 
-from ui.tabs import agent, production, readiness, router_cache
+from ui.tabs import agent, guide, production, readiness, router_cache
 
-__all__ = ["agent", "production", "readiness", "router_cache"]
+__all__ = ["agent", "guide", "production", "readiness", "router_cache"]

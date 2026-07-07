@@ -1,4 +1,4 @@
-"""ROI cost panels for the router & cache tab."""
+"""ROI cost panels for Tab 3 (router & semantic cache)."""
 
 from __future__ import annotations
 

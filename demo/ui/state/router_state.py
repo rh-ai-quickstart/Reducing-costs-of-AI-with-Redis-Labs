@@ -1,4 +1,4 @@
-"""Session keys and accessors for Tab 2 (router & semantic cache)."""
+"""Session keys and accessors for Tab 3 (router & semantic cache)."""
 
 from __future__ import annotations
 
@@ -9,16 +9,16 @@ from services.cost_metrics import RequestCostSnapshot, SessionCostTotals, empty_
 
 
 class RouterCacheState:
-    """Manages Tab 2 session state: pipeline singleton, chat, and ROI counters."""
+    """Manages Tab 3 session state: pipeline singleton, chat, and ROI counters."""
 
     PIPELINE = "pipeline"
-    MESSAGES = "t2_messages"
-    LAST_OUTCOME = "t2_last_outcome"
-    LAST_COST = "t2_last_cost"
-    COST_TOTALS = "t2_cost_totals"
-    PENDING_QUESTION = "t2_pending_question"
-    FORCE_MISS = "t2_force_miss"
-    PENDING_FEEDBACK = "t2_pending_feedback"
+    MESSAGES = "t3_messages"
+    LAST_OUTCOME = "t3_last_outcome"
+    LAST_COST = "t3_last_cost"
+    COST_TOTALS = "t3_cost_totals"
+    PENDING_QUESTION = "t3_pending_question"
+    FORCE_MISS = "t3_force_miss"
+    PENDING_FEEDBACK = "t3_pending_feedback"
     COST_SAVED = "cost_saved"
 
     @classmethod

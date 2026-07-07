@@ -1,4 +1,4 @@
-"""Queue task table and worker log helpers for the production tab."""
+"""Queue task table and worker log helpers for Tab 4 (production queue)."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def render_queue_metrics(metrics: dict) -> None:
     m1.metric(
         "Stream key",
         metrics.get("stream_key", "—"),
-        help="Redis Streams key where Tab 3 tasks are published (Docket queue).",
+        help="Redis Streams key where Tab 4 tasks are published (Docket queue).",
     )
     m2.metric(
         "Queue depth",
@@ -57,7 +57,7 @@ def render_queue_metrics(metrics: dict) -> None:
     m3.metric(
         "Active workers",
         metrics.get("active_workers", 0),
-        help="RAK consumer processes in the worker group. Zero means Tab 3 tasks will not run.",
+        help="RAK consumer processes in the worker group. Zero means Tab 4 tasks will not run.",
     )
 
 

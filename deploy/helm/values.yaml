@@ -167,6 +167,7 @@ notebook:
     image: "alpine/git:latest"
 
 # ROI / Request Journey Streamlit dashboard (optional companion to the notebook).
+# Five tabs: 00 UI Guide, 01 Readiness, 02 Complex Agent, 03 Router & Cache, 04 Production Queue.
 # Uses its own PVC so it can run alongside the notebook workload.
 # Point gitSync.repo at your fork/branch until demo/app.py is on main.
 roiDashboard:
@@ -211,7 +212,7 @@ roiDashboard:
     enabled: true
     forceRefresh: false
     repo: "https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs.git"
-    branch: "rj_docs"
+    branch: "rj_redis_ui"
     image: "alpine/git:latest"
 
   # Default token pricing ($ per 1M tokens) for the comparison dashboard sidebar.
@@ -223,7 +224,7 @@ roiDashboard:
       inputPerMillion: 2.50
       outputPerMillion: 10.00
 
-# Redis Agent Kit worker for Tab 3 (Production Queue). Consumes the same Redis
+# Redis Agent Kit worker for Tab 4 (Production Queue). Consumes the same Redis
 # Streams queue as the Streamlit UI submitter. Uses emptyDir + git-sync so it
 # can run alongside the dashboard without sharing a ReadWriteOnce PVC.
 insuranceWorker:

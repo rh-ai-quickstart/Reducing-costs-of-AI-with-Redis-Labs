@@ -1,4 +1,4 @@
-"""Redis Agent Kit queue client for Tab 3.
+"""Redis Agent Kit queue client for Tab 4 (production queue).
 
 Enqueues via a background asyncio loop (Docket submit). Polls task status with
 sync Redis reads so Streamlit fragment reruns never hit async loop conflicts.

@@ -1,4 +1,4 @@
-"""Tab 0 — System readiness preflight."""
+"""Tab 1 — System readiness preflight."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ def _render_summary(results: list) -> None:
     elif any(r.status == "idle" for r in results):
         st.warning(
             "Core services are up, but the RAK worker is not connected "
-            "(Tab 3 will not process tasks)."
+            "(Tab 4 will not process tasks)."
         )
 
 

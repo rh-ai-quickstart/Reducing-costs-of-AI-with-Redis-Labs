@@ -33,7 +33,7 @@ st.set_page_config(
 )
 
 st.markdown(
-    '<p class="dashboard-title">🛡️ Insurance Claims Assistant</p>',
+    '<h1 class="dashboard-title">🛡️ Insurance Claims Assistant</h1>',
     unsafe_allow_html=True,
 )
 st.markdown(

@@ -1,4 +1,4 @@
-"""Tab 3 — Production queue monitor (Redis Agent Kit)."""
+"""Tab 4 — Production queue monitor (Redis Agent Kit)."""
 
 from __future__ import annotations
 
@@ -34,14 +34,14 @@ def _render_enqueue_controls() -> bool:
         min_value=5,
         max_value=10,
         value=8,
-        key="t3_count",
+        key="t4_count",
         help="How many preset production questions to enqueue in one batch to Redis Streams.",
     )
 
     if not st.button(
         "Simulate Production Traffic",
         type="primary",
-        key="t3_simulate",
+        key="t4_simulate",
         help="Enqueue tasks to the insurance queue — RAK workers process them asynchronously.",
     ):
         return False
@@ -117,7 +117,7 @@ def _render_live_monitor() -> None:
 def render() -> None:
     st.header("Production Topology: Redis Agent Kit Workers")
     st.caption(
-        "Same pipeline as Tab 2 — decoupled via Redis Streams so the UI never blocks on inference."
+        "Same pipeline as Tab 3 — decoupled via Redis Streams so the UI never blocks on inference."
     )
 
     QueueTabState.ensure_defaults()

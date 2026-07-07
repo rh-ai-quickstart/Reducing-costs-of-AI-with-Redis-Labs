@@ -10,7 +10,8 @@ def test_dashboard_tabs_are_ordered_and_unique():
     notebook_indices = [tab.notebook_index for tab in DASHBOARD_TABS]
 
     assert len(labels) == len(set(labels))
-    assert notebook_indices == ["00", "01", "02", "03"]
+    assert notebook_indices == ["", "00", "01", "02", "03"]
+    assert len(DASHBOARD_TABS) == 5
 
 
 def test_each_tab_has_render_callable():

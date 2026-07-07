@@ -1,4 +1,4 @@
-"""Cost analysis helpers for the router & cache tab."""
+"""Cost analysis helpers for Tab 3 (router & semantic cache)."""
 
 from __future__ import annotations
 
