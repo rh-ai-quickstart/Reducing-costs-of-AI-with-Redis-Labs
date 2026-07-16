@@ -67,6 +67,41 @@ upgrade with redis.enterprise.olm.enabled=true (Makefile: deploy-all).
 {{- end }}
 {{- end }}
 
-Notebooks land in /opt/app-root/src/demo/notebooks (cloned by the post-install Job).
-Tail the clone job logs with:
+Notebooks land in /opt/app-root/src/demo/notebooks (cloned by the git-sync init container).
+Tail the clone init logs with:
   make -f deploy/helm/Makefile logs-clone NAMESPACE={{ .Release.Namespace }}
+{{- if .Values.roiDashboard.enabled }}
+
+ROI / Request Journey Streamlit dashboard is enabled.
+
+Wait for the dashboard pod:
+  oc rollout status deployment/{{ include "redis-notebook.roiDashboardName" . }} -n {{ .Release.Namespace }}
+{{- if and .Values.roiDashboard.route.enabled (.Capabilities.APIVersions.Has "route.openshift.io/v1") }}
+
+Browser URL (Route, edge TLS):
+  oc get route {{ include "redis-notebook.roiDashboardName" . }} -n {{ .Release.Namespace }} -o jsonpath='https://{.spec.host}{{ .Values.roiDashboard.route.path }}{"\n"}'
+{{- else }}
+
+Port-forward access (no Route configured / Route CRD missing):
+  oc port-forward -n {{ .Release.Namespace }} svc/{{ include "redis-notebook.roiDashboardName" . }} 8501:8501
+  open http://localhost:8501
+{{- end }}
+
+Dashboard code lives in /workspace/demo (git-sync init container).
+Tail git-sync logs with:
+  make -f deploy/helm/Makefile logs-roi-clone NAMESPACE={{ .Release.Namespace }}
+Tail Streamlit logs with:
+  make -f deploy/helm/Makefile logs-roi-dashboard NAMESPACE={{ .Release.Namespace }}
+{{- end }}
+{{- if .Values.insuranceWorker.enabled }}
+
+Redis Agent Kit insurance worker is enabled (Tab 4 — Production Queue).
+
+Wait for the worker pod:
+  oc rollout status deployment/{{ include "redis-notebook.insuranceWorkerName" . }} -n {{ .Release.Namespace }}
+
+Tail worker logs with:
+  make -f deploy/helm/Makefile logs-insurance-worker NAMESPACE={{ .Release.Namespace }}
+
+Queue: {{ .Values.insuranceWorker.queueName }}  concurrency: {{ .Values.insuranceWorker.concurrency }}
+{{- end }}

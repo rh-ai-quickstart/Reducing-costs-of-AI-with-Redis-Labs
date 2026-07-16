@@ -5,3 +5,8 @@ redisvl_examples
 
 values-secret.yaml
 deploy/helm/values-secret.yaml
+__pycache__/
+*.pyc
+
+venv/
+.DS_Store
