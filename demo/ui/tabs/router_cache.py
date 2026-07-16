@@ -16,6 +16,8 @@ from ui.components import (
     render_history_table,
     render_last_request_cost,
     render_session_metrics,
+    route_definitions,
+    routing_detail,
 )
 from ui.state import RouterCacheState
 
@@ -217,7 +219,13 @@ def _render_results_panel() -> None:
     outcome = RouterCacheState.last_outcome()
     if outcome:
         outcome_banner(outcome)
+        msgs = RouterCacheState.messages()
+        last_q = next(
+            (m["content"] for m in reversed(msgs) if m["role"] == "user"), ""
+        )
+        routing_detail(last_q, outcome)
 
+    route_definitions()
     _render_chat_history()
     render_history_table(totals)
     _render_feedback_controls()

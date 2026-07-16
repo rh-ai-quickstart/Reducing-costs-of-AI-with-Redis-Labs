@@ -10,4 +10,6 @@ def openai_base_url(endpoint: str) -> str:
         if trimmed.endswith(suffix):
             trimmed = trimmed[: -len(suffix)]
             break
+    if not trimmed.endswith("/v1"):
+        trimmed += "/v1"
     return trimmed

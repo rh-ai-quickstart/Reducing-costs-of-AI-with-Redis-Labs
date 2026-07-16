@@ -425,32 +425,41 @@ def answer_complex(llm, question: str) -> tuple[str, dict, list[str]]:
 
 def build_router(cfg: dict | None = None, name: str = "insurance-router"):
     """Build the three-way SemanticRouter (simple / complex / blocked)."""
-    from redisvl.extensions.router import Route, SemanticRouter
+    from redisvl.extensions.router import Route, RoutingConfig, SemanticRouter
 
     cfg = cfg or load_config()
+    # ponytail: aggregation defaults to "avg", which averages the query's
+    # distance across ALL of a route's references — so one near-perfect match
+    # gets diluted by the other (deliberately varied) phrasings and the route
+    # never fires. "min" = best-matching reference wins, the intuitive router
+    # behavior. Thresholds below are then tuned for all-mpnet-base-v2 min
+    # distances (measured: simple 0.35/0.56+, complex 0.24/0.56+, blocked
+    # 0.56/0.62+). Without this, simple+blocked never matched and every request
+    # silently fell through to the complex agent. Retune if you swap the model.
     routes = [
         Route(
             name="simple-insurance",
             references=SIMPLE_ROUTE_REFS,
             metadata={"category": "account", "priority": 1},
-            distance_threshold=0.3,
+            distance_threshold=0.45,
         ),
         Route(
             name="complex-claims",
             references=COMPLEX_ROUTE_REFS,
             metadata={"category": "claims", "priority": 2},
-            distance_threshold=0.3,
+            distance_threshold=0.35,
         ),
         Route(
             name="blocked",
             references=BLOCKED_ROUTE_REFS,
             metadata={"category": "prohibited", "priority": 3},
-            distance_threshold=0.3,
+            distance_threshold=0.6,
         ),
     ]
     return SemanticRouter(
         name=name,
         routes=routes,
+        routing_config=RoutingConfig(aggregation_method="min", max_k=1),
         redis_url=cfg["redis_url"],
         overwrite=True,
     )
@@ -459,7 +468,10 @@ def build_router(cfg: dict | None = None, name: str = "insurance-router"):
 def build_cache(
     cfg: dict | None = None,
     name: str = "insurance-approved-cache",
-    distance_threshold: float = 0.2,
+    # ponytail: 0.25, not 0.2 — the langcache-embed-v1 distance for the demo's
+    # near-duplicate pair lands at exactly 0.200, so a 0.2 gate misses it while
+    # unrelated prompts sit at 0.34+. 0.25 hits the paraphrase, still rejects them.
+    distance_threshold: float = 0.25,
 ):
     """Build the SemanticCache for complex-path and repeat question lookups."""
     from redisvl.extensions.llmcache import SemanticCache
@@ -501,7 +513,7 @@ class InsurancePipeline:
     Call :meth:`close` when done.
     """
 
-    def __init__(self, cfg: dict | None = None, cache_distance_threshold: float = 0.2):
+    def __init__(self, cfg: dict | None = None, cache_distance_threshold: float = 0.25):
         self.cfg = cfg or load_config()
         self.router = build_router(self.cfg)
         self.cache = build_cache(self.cfg, distance_threshold=cache_distance_threshold)
@@ -653,7 +665,7 @@ class InsurancePipeline:
 
 
 def build_pipeline(
-    cfg: dict | None = None, cache_distance_threshold: float = 0.2
+    cfg: dict | None = None, cache_distance_threshold: float = 0.25
 ) -> InsurancePipeline:
     """Convenience factory mirroring the rest of the module."""
     return InsurancePipeline(cfg=cfg, cache_distance_threshold=cache_distance_threshold)

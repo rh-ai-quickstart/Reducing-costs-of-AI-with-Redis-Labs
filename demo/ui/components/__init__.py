@@ -1,6 +1,6 @@
 """Reusable Streamlit widgets grouped by concern."""
 
-from ui.components.banners import outcome_banner
+from ui.components.banners import outcome_banner, route_definitions, routing_detail
 from ui.components.cards import status_card
 from ui.components.cost_panels import (
     render_history_table,
@@ -27,6 +27,8 @@ __all__ = [
     "render_queue_metrics",
     "render_session_metrics",
     "render_task_table",
+    "route_definitions",
+    "routing_detail",
     "status_card",
     "task_status_emoji",
 ]
