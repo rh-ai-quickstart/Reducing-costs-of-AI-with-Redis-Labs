@@ -15,6 +15,7 @@ from services.queue_client import (
 )
 from ui.components import (
     append_worker_logs,
+    render_event_timeline,
     render_queue_metrics,
     render_task_table,
 )
@@ -79,6 +80,7 @@ def _render_task_panel(*, live: bool) -> bool:
     if tasks:
         st.subheader("Task queue")
         render_task_table(tasks)
+        render_event_timeline(tasks)
 
     logs = QueueTabState.logs()
     if logs:

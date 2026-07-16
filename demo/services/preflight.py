@@ -90,10 +90,12 @@ def check_model(which: str) -> CheckResult:
             api_key=cfg[f"{which}_key"],
             timeout=15.0,
         )
+        # ponytail: no token cap — reasoning models (gpt-5/o-series) reject max_tokens
+        # and want max_completion_tokens, which older vLLM endpoints reject in turn.
+        # A "ping" reply is tiny, so an uncapped health probe is portable across both.
         resp = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": "ping"}],
-            max_tokens=1,
         )
         latency_ms = round((time.perf_counter() - started) * 1000, 1)
         return CheckResult(
