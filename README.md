@@ -88,13 +88,7 @@ make -f deploy/helm/Makefile uninstall
 
 ### Demo UI
 
-The **Cost-Optimized Insurance Assistant** (`demo/app.py`) is a five-tab dashboard: an in-app **UI Guide** (Tab 0) plus four interactive scenarios that mirror the notebooks — readiness checks, baseline agent, router + cache, and production queue. Run it locally with Streamlit or open the OpenShift Route after deploy.
-
-```bash
-cd demo
-pip install -r requirements.txt --extra-index-url https://pypi.org/simple
-streamlit run app.py
-```
+The **Cost-Optimized Insurance Assistant** (`demo/app.py`) is a five-tab dashboard: an in-app **UI Guide** (Tab 0) plus four interactive scenarios that mirror the notebooks — readiness checks, baseline agent, router + cache, and production queue. This dashboard will be installed on the cluster with `make deploy-all`.
 
 | Tab | Label | Notebook |
 |-----|-------|----------|
