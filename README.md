@@ -234,14 +234,6 @@ The Helm chart under **`deploy/helm`** (release name **`redis-notebook`**) provi
 
 **Secrets:** create **`deploy/helm/values-secret.yaml`** from **`values-secret.example.yaml`** with at least **`secrets.model.apiKey`**. The chart injects **`SIMPLE_MODEL_*`**, **`COMPLEX_MODEL_*`**, and **`REDIS_URL`** into the notebook, dashboard, and worker.
 
-**Useful deploy targets:**
-
-```bash
-make -f deploy/helm/Makefile deploy-all                  # notebook + Redis + dashboard + worker (defaults)
-```
-
-Full chart layout, operator modes, and troubleshooting: **[deploy/README.md](deploy/README.md)**.
-
 ## References
 
 * [Redis documentation](https://redis.io/docs/latest/)
