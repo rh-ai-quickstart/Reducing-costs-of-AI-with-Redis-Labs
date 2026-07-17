@@ -33,6 +33,8 @@ Together, caching and intelligent routing give insurance companies a practical f
 
 ### Architecture
 
+![Architecture diagram showing an the integrated stack including OpenShift, OpenShift AI and Redis Enterprise](docs/images/redis-redhat-ai.png)
+
 ## Requirements
 
 ### Minimum hardware requirements
