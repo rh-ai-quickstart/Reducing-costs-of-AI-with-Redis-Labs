@@ -1,32 +1,114 @@
-# Reduce insurance agent LLM costs with OpenShift AI and Redis
+# Optimize insurance agent LLM costs
 
 Reduce LLM costs with intelligent routing and caching with Redis Enterprise&reg; and Red Hat OpenShift AI&reg;.
 
 ## Table of contents
 
-- [Overview](#overview)
+- [Detailed Description](#detailed-description)
   - [Architecture](#architecture)
-  - [Production view](#production-view)
-- [What is getting deployed](#what-is-getting-deployed)
-- [Streamlit demo UI](#streamlit-demo-ui)
 - [Requirements](#requirements)
   - [Minimum hardware requirements](#minimum-hardware-requirements)
   - [Minimum software requirements](#minimum-software-requirements)
-- [Installation](#installation)
-  - [Deploy on OpenShift (Helm)](#deploy-on-openshift-helm)
-    - [Uninstall from OpenShift](#uninstall-from-openshift)
-  - [Run locally](#run-locally)
-    - [Uninstall local deployment](#uninstall-local-deployment)
+- [Deploy](#deploy)
+  - [Delete](#delete)
+  - [Demo UI](#demo-ui)
+- [Technical details](#technical-details)
+  - [Flow chart](#flow-chart)
+  - [Production view](#production-view)
+  - [What is getting deployed](#what-is-getting-deployed)
 - [References](#references)
 - [Tags](#tags)
 
-## Overview
+## Detailed Description
 
-Let's imagine we are tasked with building an insurance claims assistant. The business metrics show that a high volume of questions are similar in nature and could be responded to quickly by an AI agent. However, given the rising costs from model providers, ops wants to make sure that token spend is being managed efficiently. Meanwhile, the engineering team is very excited to build out an agent workflow with LangGraph and all the bells and whistles.
+Insurance companies are turning to AI-powered chatbots to handle the high volume of customer inquiries that flood call centers every day: questions about policy coverage, claims status, deductibles, and filing procedures. An AI claims assistant can dramatically improve response times and free up human agents for the cases that truly need a personal touch. But there is a catch: cost.
 
-From our interaction data, we know that not all input queries require the latest reasoning model to answer, and that there are likely many FAQ-type questions for which we don't need to constantly regenerate answers.
+When every customer question, whether it is "Hello, I need help" or "Does my homeowner's policy cover water damage from a burst pipe in a detached structure?", is routed to the same large language model, token costs grow quickly. A single powerful model delivers excellent answers, but it also means the insurance company is paying premium prices for routine interactions that don't require that level of sophistication. At the scale of a busy insurance operation, this one-size-fits-all approach can turn a promising AI investment into an unpredictable line item.
+
+The good news is that real-world insurance conversation data reveals two patterns that can be used to bring costs under control. First, a large share of incoming questions are repetitive. Policyholders ask the same things over and over: "What's my deductible?" "How do I file a claim?" "Is this covered under my plan?" Generating a fresh answer from the model every time a customer asks one of these frequently asked questions is wasteful. By introducing a semantic cache, previously answered questions can be recognized and served instantly from stored responses, without ever calling the model. The result is faster response times for policyholders and dramatically lower inference costs for the insurer.
+
+Second, not every question demands the most advanced and most expensive model available. Many inquiries are simple, vague, or conversational: "Hello," "I need help with my account," or "What services do you offer?" These don't need a state-of-the-art reasoning model to answer well. An intelligent routing layer can classify incoming questions on the fly and direct straightforward requests to a smaller, less expensive model, while reserving the full-featured, higher-cost model for genuinely complex questions that benefit from deeper reasoning, like multi-step claims analysis or policy comparison. This way, the insurer only pays for heavy computation when the question truly warrants it.
+
+Together, caching and intelligent routing give insurance companies a practical framework for managing AI costs without sacrificing the quality of the customer experience. Instead of choosing between a capable but expensive agent and a cheap but limited one, the business can deploy both strategically, so that every dollar spent on inference delivers real value to policyholders and the bottom line alike.
 
 ### Architecture
+
+## Requirements
+
+### Minimum hardware requirements
+
+| Node Type     | Qty | vCPU | Memory (GB) |
+|---------------|-----|------|-------------|
+| Control Plane | 3   | 8    | 16          |
+| Worker        | 2   | 8    | 32          |
+
+> [!NOTE]
+> A GPU is not required for this quickstart
+
+### Minimum software requirements
+
+This quickstart was tested with the following software versions:
+
+| Software                           | Version  |
+| ---------------------------------- |:---------|
+| OpenShift                          | 4.20+    |
+| OpenShift AI                       | 3.4+     |
+| Redis Enterprise                   | 7        |
+| helm                               | 3.17+    |
+
+## Deploy
+
+The [full deployment guide](deploy/README.md) has details on the deployment and troubleshooting. 
+
+Before running `make deploy` to perform the installation:
+
+1. Create `deploy/helm/values-secret.yaml` by copying `deploy/helm/values-secret.example.yaml`
+2. Set real values for `secrets.model.apiKey` and the other `secrets.model.*` keys. 
+
+`make deploy` runs `check-secrets` and `validate-secrets` (merged values must not be null/empty for required fields; requires **PyYAML**: `python3 -m pip install pyyaml`).
+
+```bash
+cp deploy/helm/values-secret.example.yaml deploy/helm/values-secret.yaml
+# Edit deploy/helm/values-secret.yaml
+
+make -f deploy/helm/Makefile help
+make -f deploy/helm/Makefile deploy-all
+```
+
+Redis can also be [run locally](docs/run-redis-locally.md) for this demo, if necessary.
+
+### Delete
+The quickstart can be uninstalled with the following command.
+
+```bash
+make -f deploy/helm/Makefile uninstall
+```
+
+### Demo UI
+
+The **Cost-Optimized Insurance Assistant** (`demo/app.py`) is a five-tab dashboard: an in-app **UI Guide** (Tab 0) plus four interactive scenarios that mirror the notebooks — readiness checks, baseline agent, router + cache, and production queue. Run it locally with Streamlit or open the OpenShift Route after deploy.
+
+```bash
+cd demo
+pip install -r requirements.txt --extra-index-url https://pypi.org/simple
+streamlit run app.py
+```
+
+| Tab | Label | Notebook |
+|-----|-------|----------|
+| 0 | 📖 UI Guide | — (renders `docs/embeded_guide.md`) |
+| 1 | 🚀 Readiness Check | `00_initialization.ipynb` |
+| 2 | 🤖 Complex Agent | `01_agent.ipynb` |
+| 3 | ⚖️ Router & Cache | `02_router_cache.ipynb` |
+| 4 | 🏭 Production Queue | `03_async_work_queue.ipynb` |
+
+Tab-by-tab walkthrough, preset buttons, cost metrics, and worker requirements: **[docs/streamlit-ui-guide.md](docs/streamlit-ui-guide.md)** (in-app Tab 0 renders **[docs/embeded_guide.md](docs/embeded_guide.md)**).
+
+## Technical details
+
+This section includes some deeper architectural diagrams, call flow sequences and details on exactly what is deployed as part of the quickstart.
+
+### Flow chart
 
 ```mermaid
 flowchart TB
@@ -129,7 +211,7 @@ router --o|complex| redis
 
 ```
 
-## What is getting deployed
+### What is getting deployed
 
 The Helm chart under **`deploy/helm`** (release name **`redis-notebook`**) provisions the full quickstart stack on OpenShift. A plain **`make deploy`** installs the core pieces; optional targets add operators or the conference demo UI.
 
@@ -158,133 +240,6 @@ make -f deploy/helm/Makefile deploy-all                  # notebook + Redis + da
 
 Full chart layout, operator modes, and troubleshooting: **[deploy/README.md](deploy/README.md)**.
 
-## Streamlit demo UI
-
-The **Cost-Optimized Insurance Assistant** (`demo/app.py`) is a five-tab Streamlit dashboard: an in-app **UI Guide** (Tab 0) plus four interactive scenarios that mirror the notebooks — readiness checks, baseline agent, router + cache, and production queue. Run it locally with Streamlit or open the OpenShift Route after deploy.
-
-```bash
-cd demo
-pip install -r requirements.txt --extra-index-url https://pypi.org/simple
-streamlit run app.py
-```
-
-| Tab | Label | Notebook |
-|-----|-------|----------|
-| 0 | 📖 UI Guide | — (renders `docs/embeded_guide.md`) |
-| 1 | 🚀 Readiness Check | `00_initialization.ipynb` |
-| 2 | 🤖 Complex Agent | `01_agent.ipynb` |
-| 3 | ⚖️ Router & Cache | `02_router_cache.ipynb` |
-| 4 | 🏭 Production Queue | `03_async_work_queue.ipynb` |
-
-Tab-by-tab walkthrough, preset buttons, cost metrics, and worker requirements: **[docs/streamlit-ui-guide.md](docs/streamlit-ui-guide.md)** (in-app Tab 0 renders **[docs/embeded_guide.md](docs/embeded_guide.md)**).
-
-## Requirements
-
-### Minimum hardware requirements
-
-| Node Type     | Qty | vCPU | Memory (GB) |
-|---------------|-----|------|-------------|
-| Control Plane | 3   | 8    | 16          |
-| Worker        | 2   | 8    | 32          |
-
-> [!NOTE]
-> A GPU is not required for this quickstart
-
-### Minimum software requirements
-
-This quickstart was tested with the following software versions:
-
-| Software                           | Version  |
-| ---------------------------------- |:---------|
-| OpenShift                          | 4.20+    |
-| OpenShift AI                       | 3.4+     |
-| Redis Enterprise                   | 7        |
-| helm                               | 3.17+    |
-
-## Installation
-
-### Deploy on OpenShift (Helm)
-
-**Full deployment guide:** [deploy/README.md](deploy/README.md) — chart layout, `make` targets, how **`values.yaml`** and **`values-secret.yaml`** are merged for **`helm upgrade`**, Redis modes, RBAC, and troubleshooting.
-
-This repository includes a **Helm chart** under **`deploy/helm`** (chart name **`redis-notebook`**) that can install:
-
-- a **Jupyter workbench** with a persistent workspace — by default a Kubeflow **`Notebook`** CR (`notebook.kind=Notebook`, requires **Red Hat OpenShift AI** / Open Data Hub), or a plain `Deployment` + `Service` + OpenShift `Route` when `notebook.kind=Deployment` (any OpenShift cluster),
-- a **git-sync init container** on the notebook pod that clones this repo and copies **`demo/`** into the workspace,
-- **Redis Enterprise** in-cluster by default (`RedisEnterpriseCluster` + `RedisEnterpriseDatabase`), with optional **OT-CONTAINER-KIT** operator + Redis CR or an **external** `REDIS_URL` instead.
-
-**Before `make deploy`:** create **`deploy/helm/values-secret.yaml`** (gitignored) from **`deploy/helm/values-secret.example.yaml`** and set real values for `secrets.model.apiKey` and the other `secrets.model.*` keys. **`make deploy`** runs **`check-secrets`** (file exists) and **`validate-secrets`** (merged values must not be null/empty for required fields; requires **PyYAML**: `python3 -m pip install pyyaml`).
-
-```bash
-cp deploy/helm/values-secret.example.yaml deploy/helm/values-secret.yaml
-# Edit deploy/helm/values-secret.yaml
-
-make -f deploy/helm/Makefile help
-make -f deploy/helm/Makefile deploy-all
-# Optional: chart-managed Redis Enterprise operator OLM
-# make -f deploy/helm/Makefile deploy-all
-```
-#### Uninstall from OpenShift
-
-```bash
-make -f deploy/helm/Makefile uninstall
-```
-
-More **helm upgrade** examples, operator modes, and cleanup: [deploy/README.md](deploy/README.md).
-
-### Run locally
-
-The `demo/` folder contains everything needed to exercise the router + cache + agent pattern against a local Redis instance and an OpenAI-compatible API.
-
-#### Requirements
-
-- Python 3.11+ (3.12 is fine)
-- **Redis** reachable at `REDIS_URL` (default `redis://localhost:6379`). Use **Redis Stack** if you run **`02_router_cache.ipynb`** (semantic router / cache need search modules). **`01_agent.ipynb`** LangGraph multi-turn memory needs **`langgraph-checkpoint-redis`** (see `demo/scripts/requirements.txt`).
-- An API key for your LLM provider (OpenAI by default; override **`MODEL_ENDPOINT`** for OpenShift AI / vLLM / Azure OpenAI–compatible hosts)
-
-**1. Install dependencies**
-
-```bash
-cd Reducing-costs-of-AI-with-Redis-Labs
-python -m venv .venv && source .venv/bin/activate
-pip install -r demo/scripts/requirements.txt --extra-index-url https://pypi.org/simple
-```
-
-**2. Configure the environment**
-
-Create a `.env` file at the repository root:
-
-```dotenv
-MODEL_API_KEY=sk-...
-MODEL_ENDPOINT=https://api.openai.com
-SIMPLE_MODEL_NAME=gpt-4.1
-COMPLEX_MODEL_NAME=gpt-5
-REDIS_URL=redis://localhost:6379
-```
-
-**3. Run the notebooks**
-
-```bash
-jupyter lab demo/notebooks
-```
-
-Run from the **`demo/notebooks`** directory (or ensure that is the notebook working directory) so paths to `data/` and repo-root `.env` resolve as in the notebooks.
-
-| Notebook | What it shows |
-|---|---|
-| `00_initialization.ipynb` | Optional smoke test: env vars, Redis `PING`, and model endpoint checks. |
-| `01_agent.ipynb` | Step-by-step LangGraph ReAct agent (FAQ, policy tools, Redis-backed checkpointer). |
-| `02_router_cache.ipynb` | Imports `demo/shared/insurance_bot.py`: semantic router, thumbs-up–only semantic cache, agent with Redis memory. |
-| `03_async_work_queue.ipynb` | Uses [redis-agent-kit](https://pypi.org/project/redis-agent-kit/) for an async Redis-backed work queue across workers. |
-
-#### Uninstall local deployment
-
-Local setup has no cluster release. Deactivate the virtualenv and remove it if you no longer need it:
-
-```bash
-deactivate
-rm -rf .venv
-```
 ## References
 
 * [Redis documentation](https://redis.io/docs/latest/)
@@ -294,6 +249,6 @@ rm -rf .venv
 ## Tags
 
 * **Industry:** Insurance
-* **Product:** Red Hat OpenShift AI
+* **Product:** OpenShift AI
 * **Use Case:** LLM cost optimization
 * **Partner**: Redis Labs
