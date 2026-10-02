@@ -127,7 +127,7 @@ Optional five-tab conference demo UI at **`demo/app.py`** (Tab 0 = in-app guide,
 - **Deployment** — `python:3.12-slim`, installs deps at pod start, runs Streamlit on **8501**
 - **Dedicated PVC** — separate from the notebook so both workloads can run together
 - **OpenShift Route** — edge TLS (same pattern as `notebook.kind=Deployment`)
-- **git-sync init container** — clones `roiDashboard.gitSync.repo` and copies **`demo/`** into the pod workspace
+- **git-sync init container** — clones `roiDashboard.gitSync.repo` and copies **`demo/`** and **`docs/`** into the pod workspace (Tab 0 reads `docs/embeded_guide.md`)
 - **Same secrets** — `SIMPLE_MODEL_*`, `COMPLEX_MODEL_*`, and `REDIS_URL` from `values-secret.yaml` (live mode when all four model vars are set)
 
 **Deploy with notebook + dashboard:**

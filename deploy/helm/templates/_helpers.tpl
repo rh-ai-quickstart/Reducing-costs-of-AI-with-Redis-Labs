@@ -312,7 +312,8 @@ Runs inside the notebook pod so ReadWriteOnce volumes are never shared with a se
 {{- end }}
 
 {{/*
-Init container: clone roiDashboard.gitSync.repo and copy demo/ into the workspace PVC.
+Init container: clone roiDashboard.gitSync.repo and copy demo/ and docs/ into the workspace PVC.
+docs/ is required so Tab 0 can read /workspace/docs/embeded_guide.md.
 Runs inside the roi-dashboard pod so ReadWriteOnce volumes are never shared with a separate Job.
 */}}
 {{- define "redis-notebook.roiDashboardGitSyncInitContainer" -}}
@@ -328,13 +329,19 @@ Runs inside the roi-dashboard pod so ReadWriteOnce volumes are never shared with
     - |
       set -e
       cd /workspace
-      if [ "$GIT_SYNC_FORCE" != "true" ] && [ -f demo/app.py ]; then
-        echo "demo/app.py already present; skipping git sync (set roiDashboard.gitSync.forceRefresh=true to replace)."
+      if [ "$GIT_SYNC_FORCE" != "true" ] && [ -f demo/app.py ] && [ -f docs/embeded_guide.md ]; then
+        echo "demo/app.py and docs/embeded_guide.md already present; skipping git sync (set roiDashboard.gitSync.forceRefresh=true to replace)."
         exit 0
       fi
-      if [ "$GIT_SYNC_FORCE" = "true" ] && [ -d demo ]; then
-        echo "Removing existing demo folder (forceRefresh)..."
-        rm -rf demo
+      if [ "$GIT_SYNC_FORCE" = "true" ]; then
+        if [ -d demo ]; then
+          echo "Removing existing demo folder (forceRefresh)..."
+          rm -rf demo
+        fi
+        if [ -d docs ]; then
+          echo "Removing existing docs folder (forceRefresh)..."
+          rm -rf docs
+        fi
       fi
       echo "Cloning repository: {{ .Values.roiDashboard.gitSync.repo }}"
       RETRIES=5
@@ -358,6 +365,18 @@ Runs inside the roi-dashboard pod so ReadWriteOnce volumes are never shared with
         echo "Demo folder successfully copied to workspace"
       else
         echo "Error: No demo directory found in repository"
+        exit 1
+      fi
+      echo "Copying docs folder to workspace..."
+      if [ -d "/tmp/repo/docs" ]; then
+        cp -rf /tmp/repo/docs . || { echo "Error: Failed to copy docs folder"; exit 1; }
+        if [ ! -f "docs/embeded_guide.md" ]; then
+          echo "Error: docs/embeded_guide.md missing after copy"
+          exit 1
+        fi
+        echo "Docs folder successfully copied to workspace"
+      else
+        echo "Error: No docs directory found in repository"
         exit 1
       fi
       rm -rf /tmp/repo

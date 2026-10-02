@@ -10,7 +10,9 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Callable
 from functools import lru_cache
+from typing import Any
 
 from config import (
     DATA_DIR,
@@ -298,7 +300,12 @@ def build_tools():
 
 
 def build_llm(which: str = "complex", cfg: dict | None = None):
-    """Build a ChatOpenAI bound to the simple or complex model endpoint."""
+    """Build a ChatOpenAI bound to the simple or complex model endpoint.
+
+    Streaming is on so MaaS gateways that drop idle non-streaming connections
+    still deliver gpt-oss-120b replies. ``stream_usage`` keeps token counts on
+    the final chunk for the cost panels.
+    """
     from langchain_openai import ChatOpenAI
 
     if which not in ("simple", "complex"):
@@ -308,11 +315,14 @@ def build_llm(which: str = "complex", cfg: dict | None = None):
         model=cfg[f"{which}_model"],
         api_key=cfg[f"{which}_key"],
         base_url=openai_base_url(cfg[f"{which}_endpoint"]),
+        streaming=True,
+        stream_usage=True,
     )
 
 
 _THINK_BLOCK = re.compile(r"<think\b[^>]*>.*?</think>", re.DOTALL | re.IGNORECASE)
 _ORPHAN_THINK_CLOSE = re.compile(r"\A.*?</think>\s*", re.DOTALL | re.IGNORECASE)
+_OPEN_THINK = re.compile(r"<think\b[^>]*>", re.IGNORECASE)
 
 
 def strip_reasoning(text: str) -> str:
@@ -328,6 +338,66 @@ def strip_reasoning(text: str) -> str:
     if "</think>" in cleaned.lower():
         cleaned = _ORPHAN_THINK_CLOSE.sub("", cleaned, count=1)
     return cleaned.strip()
+
+
+def visible_stream_text(raw: str) -> str:
+    """Strip completed think blocks and hide an incomplete trailing think tag.
+
+    Used while tokens arrive so chain-of-thought does not flash in the UI.
+    """
+    if not raw:
+        return raw
+    cleaned = _THINK_BLOCK.sub("", raw)
+    open_match = _OPEN_THINK.search(cleaned)
+    if open_match:
+        cleaned = cleaned[: open_match.start()]
+    if "</think>" in cleaned.lower():
+        cleaned = _ORPHAN_THINK_CLOSE.sub("", cleaned, count=1)
+    return cleaned.strip()
+
+
+def _chunk_text(content: Any) -> str:
+    """Normalize a LangChain stream chunk's content to a plain string."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+            elif isinstance(part, dict):
+                parts.append(str(part.get("text") or ""))
+            else:
+                text = getattr(part, "text", None)
+                parts.append(str(text) if text is not None else "")
+        return "".join(parts)
+    return str(content)
+
+
+def stream_chat(
+    llm,
+    messages: list[dict[str, str]],
+    *,
+    on_token: Callable[[str], None] | None = None,
+) -> tuple[str, dict]:
+    """Consume ``llm.stream(messages)`` and return ``(stripped_text, usage)``.
+
+    ``on_token`` receives the cleaned visible answer so far (think tags hidden).
+    """
+    raw = ""
+    usage: dict = {}
+    for chunk in llm.stream(messages):
+        piece = _chunk_text(getattr(chunk, "content", None))
+        if piece:
+            raw += piece
+            if on_token is not None:
+                on_token(visible_stream_text(raw))
+        meta = getattr(chunk, "usage_metadata", None) or {}
+        if meta:
+            usage = dict(meta)
+    return strip_reasoning(raw), usage
 
 
 def build_agent(checkpointer=None, cfg: dict | None = None):
@@ -357,15 +427,21 @@ def build_simple_llm(cfg: dict | None = None):
     return build_llm("simple", cfg)
 
 
-def answer_simple(llm, question: str) -> tuple[str, dict]:
+def answer_simple(
+    llm,
+    question: str,
+    *,
+    on_token: Callable[[str], None] | None = None,
+) -> tuple[str, dict]:
     """Run the simple model and return (text, usage_metadata)."""
-    resp = llm.invoke(
+    return stream_chat(
+        llm,
         [
             {"role": "system", "content": SIMPLE_SYSTEM_PROMPT},
             {"role": "user", "content": question},
-        ]
+        ],
+        on_token=on_token,
     )
-    return strip_reasoning(resp.content), (resp.usage_metadata or {})
 
 
 def _build_complex_context(question: str) -> tuple[str, list[str]]:
@@ -405,7 +481,12 @@ def _build_complex_context(question: str) -> tuple[str, list[str]]:
     return "\n\n".join(sections), tools_used
 
 
-def answer_complex(llm, question: str) -> tuple[str, dict, list[str]]:
+def answer_complex(
+    llm,
+    question: str,
+    *,
+    on_token: Callable[[str], None] | None = None,
+) -> tuple[str, dict, list[str]]:
     """Run the complex model with retrieved context instead of tool-calling agent APIs."""
     context, tools_used = _build_complex_context(question)
     user_content = (
@@ -414,13 +495,15 @@ def answer_complex(llm, question: str) -> tuple[str, dict, list[str]]:
         f"{context}\n\n"
         f"Customer question: {question}"
     )
-    resp = llm.invoke(
+    answer, usage = stream_chat(
+        llm,
         [
             {"role": "system", "content": AGENT_SYSTEM_PROMPT},
             {"role": "user", "content": user_content},
-        ]
+        ],
+        on_token=on_token,
     )
-    return strip_reasoning(resp.content), (resp.usage_metadata or {}), tools_used
+    return answer, usage, tools_used
 
 
 def build_router(cfg: dict | None = None, name: str = "insurance-router"):
@@ -584,8 +667,13 @@ class InsurancePipeline:
         thread_id: str = "demo-thread",
         *,
         force_cache_miss: bool = False,
+        on_token: Callable[[str], None] | None = None,
     ) -> dict:
-        """Classify, dispatch, and return a structured answer dict."""
+        """Classify, dispatch, and return a structured answer dict.
+
+        ``on_token`` is forwarded to the plain simple/complex chat paths so the
+        UI can paint tokens as the MaaS stream arrives.
+        """
         base_meta = {"thread_id": thread_id}
 
         if not force_cache_miss:
@@ -617,7 +705,9 @@ class InsurancePipeline:
             }
 
         if route == "simple-insurance":
-            answer, usage = answer_simple(self.simple_llm, question)
+            answer, usage = answer_simple(
+                self.simple_llm, question, on_token=on_token
+            )
             return self._finalize_answer(
                 question,
                 {
@@ -631,7 +721,9 @@ class InsurancePipeline:
             )
 
         if self.plain_complex:
-            answer, usage, tools_used = answer_complex(self.complex_llm, question)
+            answer, usage, tools_used = answer_complex(
+                self.complex_llm, question, on_token=on_token
+            )
             return self._finalize_answer(
                 question,
                 {

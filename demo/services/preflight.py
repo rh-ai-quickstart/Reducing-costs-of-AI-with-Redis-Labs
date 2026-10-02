@@ -77,7 +77,7 @@ def check_redis() -> CheckResult:
 
 
 def check_model(which: str) -> CheckResult:
-    """Send a one-token probe to the simple or complex MaaS endpoint."""
+    """Send a streaming one-token probe to the simple or complex MaaS endpoint."""
     cfg = load_config()
     model = cfg[f"{which}_model"]
     label = f"MaaS {which.title()} Model ({model})"
@@ -88,20 +88,28 @@ def check_model(which: str) -> CheckResult:
         client = OpenAI(
             base_url=openai_base_url(cfg[f"{which}_endpoint"]),
             api_key=cfg[f"{which}_key"],
-            timeout=15.0,
+            # gpt-oss-120b often needs several seconds before the first stream
+            # chunk; non-streaming probes hit gateway idle cutoffs around 60s.
+            timeout=60.0,
         )
-        # ponytail: no token cap — reasoning models (gpt-5/o-series) reject max_tokens
-        # and want max_completion_tokens, which older vLLM endpoints reject in turn.
-        # A "ping" reply is tiny, so an uncapped health probe is portable across both.
-        resp = client.chat.completions.create(
+        # Stream so the gateway keeps the connection alive. No token cap —
+        # reasoning models reject max_tokens and want max_completion_tokens,
+        # which older vLLM endpoints reject in turn. A "ping" reply is tiny.
+        stream = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": "ping"}],
+            stream=True,
         )
+        resp_id = ""
+        for event in stream:
+            if not resp_id and getattr(event, "id", None):
+                resp_id = event.id
         latency_ms = round((time.perf_counter() - started) * 1000, 1)
+        detail_id = f"{resp_id[:12]}…" if resp_id else "stream-ok"
         return CheckResult(
             name=label,
             status="ready",
-            detail=f"{model} responsive (id={resp.id[:12]}…)",
+            detail=f"{model} responsive (id={detail_id})",
             latency_ms=latency_ms,
         )
     except Exception as exc:

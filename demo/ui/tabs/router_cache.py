@@ -137,13 +137,16 @@ def _process_pending_question(pending: str, *, force_miss: bool) -> None:
     """Run the insurance pipeline and record ROI metrics for one question."""
     pipeline = RouterCacheState.get_pipeline()
     started = time.perf_counter()
+    stream_box = st.empty()
 
     with st.spinner("Routing..."):
         outcome = pipeline.handle(
             pending,
             thread_id="ui-tab3-router",
             force_cache_miss=force_miss,
+            on_token=stream_box.markdown,
         )
+    stream_box.empty()
     outcome["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
 
     snap = snapshot_from_outcome(pending, outcome)

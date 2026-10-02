@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Iterator
+from typing import Any
 
 import insurance_bot as ib
 from config import load_config
@@ -40,10 +41,15 @@ def _is_tool_calling_error(exc: BaseException) -> bool:
     return any(marker in message for marker in markers)
 
 
-def _run_plain_complex(cfg: dict, question: str) -> tuple[str, dict, list[str]]:
+def _run_plain_complex(
+    cfg: dict,
+    question: str,
+    *,
+    on_token: Callable[[str], None] | None = None,
+) -> tuple[str, dict, list[str]]:
     """Single chat completion with Redis pre-fetched context (no LangGraph agent)."""
     llm = ib.build_llm("complex", cfg)
-    return ib.answer_complex(llm, question)
+    return ib.answer_complex(llm, question, on_token=on_token)
 
 
 def _run_agent(question: str, thread_id: str, cfg: dict) -> tuple[str, dict, list[str]]:
@@ -75,45 +81,28 @@ def _execute_complex_path(
     *,
     thread_id: str,
     cfg: dict,
+    on_token: Callable[[str], None] | None = None,
 ) -> tuple[str, dict[str, Any], list[str], bool]:
     """Run the complex model path, falling back to plain mode on tool-call errors."""
     plain_complex = ib.use_plain_complex()
     if plain_complex:
-        answer, usage, tools_used = _run_plain_complex(cfg, question)
+        answer, usage, tools_used = _run_plain_complex(
+            cfg, question, on_token=on_token
+        )
         return answer, usage, tools_used, plain_complex
 
     try:
         answer, usage, tools_used = _run_agent(question, thread_id, cfg)
+        if on_token is not None and answer:
+            on_token(answer)
         return answer, usage, tools_used, plain_complex
     except Exception as exc:
         if not _is_tool_calling_error(exc):
             raise
-        answer, usage, tools_used = _run_plain_complex(cfg, question)
+        answer, usage, tools_used = _run_plain_complex(
+            cfg, question, on_token=on_token
+        )
         return answer, usage, tools_used, True
-
-
-def _token_chunks(text: str) -> Iterator[str]:
-    """Yield whitespace-delimited tokens for simulated streaming."""
-    for word in text.split(" "):
-        yield word + " "
-
-
-def _stream_answer_to_placeholder(
-    answer: str,
-    *,
-    body_placeholder,
-    tools_placeholder,
-    tools_used: list[str],
-) -> None:
-    """Write the answer into Streamlit placeholders with a word-by-word effect."""
-    displayed = ""
-    for chunk in _token_chunks(answer):
-        displayed += chunk
-        body_placeholder.markdown(displayed.strip())
-        time.sleep(0.015)
-
-    if tools_used:
-        tools_placeholder.markdown("\n".join(f"- `{t}`" for t in tools_used))
 
 
 def run_complex_agent(
@@ -135,13 +124,12 @@ def run_complex_agent(
             question,
             thread_id=thread_id,
             cfg=cfg,
+            on_token=body_placeholder.markdown,
         )
-        _stream_answer_to_placeholder(
-            answer,
-            body_placeholder=body_placeholder,
-            tools_placeholder=tools_placeholder,
-            tools_used=tools_used,
-        )
+        if answer:
+            body_placeholder.markdown(answer)
+        if tools_used:
+            tools_placeholder.markdown("\n".join(f"- `{t}`" for t in tools_used))
 
         latency_ms = round((time.perf_counter() - started) * 1000, 1)
         cost = estimate_cost(usage, pricing)

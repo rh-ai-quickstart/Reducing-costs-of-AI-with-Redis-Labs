@@ -212,7 +212,7 @@ roiDashboard:
     enabled: true
     forceRefresh: false
     repo: "https://github.com/rh-ai-quickstart/Reducing-costs-of-AI-with-Redis-Labs.git"
-    branch: "rj_redis_ui"
+    branch: "rj_testing"
     image: "alpine/git:latest"
 
   # Default token pricing ($ per 1M tokens) for the comparison dashboard sidebar.
