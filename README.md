@@ -62,12 +62,12 @@ This quickstart was tested with the following software versions:
 
 The [full deployment guide](deploy/README.md) has details on the deployment and troubleshooting. 
 
-Before running `make deploy` to perform the installation:
+Before running `make deploy-all` to perform the installation:
 
 1. Create `deploy/helm/values-secret.yaml` by copying `deploy/helm/values-secret.example.yaml`
 2. Set real values for `secrets.model.apiKey` and the other `secrets.model.*` keys. 
 
-`make deploy` runs `check-secrets` and `validate-secrets` (merged values must not be null/empty for required fields; requires **PyYAML**: `python3 -m pip install pyyaml`).
+`make deploy-all` runs `check-secrets` and `validate-secrets` (merged values must not be null/empty for required fields; requires **PyYAML**: `python3 -m pip install pyyaml`).
 
 ```bash
 cp deploy/helm/values-secret.example.yaml deploy/helm/values-secret.yaml
